@@ -104,8 +104,10 @@ unzip minai.zip && bash minai/install.sh
 
 1. From a phone or computer on the same network, open **`http://minai-setup.local`** (or the IP address shown on the rig's screen).
 2. Choose the **rig name** and its **password**.
-3. Settings open by themselves: **connect Tailscale** with the same account as the server.
+3. Settings open by themselves: **connect Tailscale** with the same account as the server (optional, see below).
 4. In minai-server: **menu → Add rig**, paste the address and token shown in the rig's Settings.
+
+> **Just one rig, or no server?** Tailscale is optional. Close the window with **Skip for now** and the rig works on its own: you manage it from `http://rig-name.local` or its IP address on your local network, with every feature (miners, launches, overclock, autofan, terminal, updates). You can connect it to Tailscale and minai-server later, from Settings.
 
 ### 4. Start mining
 

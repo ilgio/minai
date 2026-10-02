@@ -143,6 +143,16 @@ label.check input { width: auto; margin: 0; }
 
 @media (max-width: 700px) {
   body { padding-bottom: calc(5.25rem + env(safe-area-inset-bottom)); }
+  /* riepilogo: velocità e menu sulla prima riga, i tre riquadri a tutta larghezza sotto */
+  .speeds { order: 1; flex: 1; width: auto; }
+  .menu { order: 2; margin-left: auto; }
+  .summary { order: 3; flex: none; width: 100%; }
+  .chip .v { white-space: nowrap; }
+  /* schede dei rig: tutta la larghezza per le righe delle GPU */
+  .rig { padding-right: .95rem; }
+  .righead { padding-right: 2rem; }
+  .gpurow { gap: .6rem; padding: .35rem .55rem; }
+  .gv { min-width: 0; }
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; margin: 0; border: 0; border-top: 1px solid var(--line);
           background: rgba(19, 22, 27, .92); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
           padding: .35rem .25rem calc(.35rem + env(safe-area-inset-bottom)); justify-content: space-around; }

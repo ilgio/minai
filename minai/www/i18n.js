@@ -106,8 +106,12 @@ const EN = {
     "The session stays open on the rig: if you disconnect or switch apps, you pick up where you left off.",
 
   // impostazioni e Tailscale
-  "Ultimo passo: collega il rig a Tailscale, poi aggiungilo in minai-server con indirizzo e token qui sotto.":
-    "Last step: connect the rig to Tailscale, then add it in minai-server with the address and token below.",
+  "Facoltativo:": "Optional:",
+  "collega Tailscale per gestire il rig da remoto e aggiungerlo a minai-server con indirizzo e token qui sotto. Puoi farlo anche più tardi, da Impostazioni.":
+    "connect Tailscale to manage the rig remotely and add it to minai-server with the address and token below. You can also do it later, from Settings.",
+  "Salta per ora": "Skip for now",
+  "Dopo potrai collegare il rig a Tailscale, per gestirlo da remoto e da minai-server. È facoltativo: il rig funziona anche da solo, in rete locale.":
+    "Afterwards you can connect the rig to Tailscale, to manage it remotely and from minai-server. It's optional: the rig also works on its own, on your local network.",
   "Tailscale": "Tailscale", "Collega con il tuo account Tailscale": "Connect with your Tailscale account",
   "Accedi a Tailscale nella scheda che si è aperta (se non si è aperta, usa questo link:":
     "Log in to Tailscale in the tab that just opened (if it didn't open, use this link:",

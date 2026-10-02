@@ -47,6 +47,7 @@
       <label id="repeatRow" hidden>Ripeti la password
         <input id="loginRepeat" type="password" autocomplete="new-password">
       </label>
+      <p id="setupNote" class="setupnote" hidden>Dopo potrai collegare il rig a Tailscale, per gestirlo da remoto e da minai-server. È facoltativo: il rig funziona anche da solo, in rete locale.</p>
       <p id="loginError" class="error" hidden></p>
       <button id="btnLogin" class="primary" type="submit">Entra</button>
       <div class="loginlang" data-langpick></div>
@@ -188,7 +189,10 @@
 
   <dialog id="setDialog" aria-labelledby="setTitle">
     <h2 id="setTitle">Impostazioni</h2>
-    <p id="firstRunHint" class="firsthint" hidden>Ultimo passo: collega il rig a Tailscale, poi aggiungilo in minai-server con indirizzo e token qui sotto.</p>
+    <div id="firstRunHint" class="firsthint" hidden>
+      <p><strong>Facoltativo:</strong> collega Tailscale per gestire il rig da remoto e aggiungerlo a minai-server con indirizzo e token qui sotto. Puoi farlo anche più tardi, da Impostazioni.</p>
+      <button id="btnSkipTs">Salta per ora</button>
+    </div>
     <h3>Lingua</h3>
     <div data-langpick></div>
     <h3>Tailscale</h3>

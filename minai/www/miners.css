@@ -254,3 +254,5 @@ a.button.primary { background: var(--accent); border-color: var(--accent); color
 .askdlg { width: min(26rem, 92vw); }
 .askdlg p { white-space: pre-line; margin: 0 0 1.2rem; font-size: 15px; line-height: 1.5; }
 button.dangerfill { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 600; }
+.setupnote { font-size: 12px; color: var(--muted); margin: .2rem 0 .8rem; line-height: 1.45; }
+.firsthint p { margin: 0 0 .6rem; }

@@ -63,6 +63,7 @@ function showLogin(setup = false, host = "") {
   $("nameRow").hidden = !setup;
   if (setup && host && !/^minai-/.test(host)) $("setupName").value = host;
   $("repeatRow").hidden = !setup;
+  $("setupNote").hidden = !setup;
   $("loginPassword").autocomplete = setup ? "new-password" : "current-password";
   $("btnLogin").textContent = setup ? "Salva e entra" : "Entra";
   $("app").hidden = true;
@@ -716,6 +717,7 @@ $("btnSettings").addEventListener("click", openSettings);
 $("btnTsLink").addEventListener("click", () => tsConnect(false));
 $("btnTsKey").addEventListener("click", () => tsConnect(true));
 $("btnTsLogout").addEventListener("click", tsLogout);
+$("btnSkipTs").addEventListener("click", () => { $("firstRunHint").hidden = true; $("setDialog").close(); });
 $("btnSetClose").addEventListener("click", () => { $("setDialog").close(); if (tsPoll) { clearInterval(tsPoll); tsPoll = null; } });
 for (const b of document.querySelectorAll("[data-copy]")) b.addEventListener("click", () => copyText(b.dataset.copy));
 
