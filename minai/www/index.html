@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>minai</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#13161b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="minai">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="miners.css">
+  <script src="i18n.js" defer></script>
+  <script src="miners.js" defer></script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+    <symbol id="i-launch" viewBox="0 0 24 24"><path d="M4 6h10M4 12h10M4 18h6"/><path d="m16 14 5 3-5 3v-6Z"/></symbol>
+    <symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 10 3 2-3 2M13 15h4"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+    <symbol id="i-reboot" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.5"/><path d="M20 4v4.5h-4.5"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M17.7 6.8a8 8 0 1 1-11.4 0"/></symbol>
+    <symbol id="i-exit" viewBox="0 0 24 24"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m15 16 4-4-4-4M19 12H10"/></symbol>
+    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.8"/><path d="M12 10.2c-.6-3 .3-6.2 3-6.7 2.2-.4 3.6 1.9 2.3 3.8-1 1.5-2.8 2.4-5.3 2.9Z"/><path d="M13.6 12.9c2.9 1 5.2 3.3 4.3 5.9-.7 2.1-3.4 2.2-4.4.1-.8-1.6-.6-3.6.1-6Z"/><path d="M10.4 12.9c-2.3 2-5.5 2.8-7.3.7-1.4-1.7-.1-4.1 2.2-3.9 1.8.1 3.4 1.2 5.1 3.2Z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.5"/><path d="M20 4v4.5h-4.5"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></symbol>
+  </svg>
+
+  <main id="login" class="login" hidden>
+    <form id="loginForm" class="card">
+      <img class="logo" src="logo.svg" alt="" width="44" height="44">
+      <h1>minai</h1>
+      <input class="vh" type="text" name="username" autocomplete="username" value="miner" readonly tabindex="-1" aria-hidden="true">
+      <p id="setupHint" class="muted small" hidden>Primo avvio: dai un nome a questo rig e scegli la sua password (almeno 8 caratteri).</p>
+      <label id="nameRow" hidden>Nome del rig
+        <input id="setupName" placeholder="backup3" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </label>
+      <label>Password
+        <input id="loginPassword" type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <label id="repeatRow" hidden>Ripeti la password
+        <input id="loginRepeat" type="password" autocomplete="new-password">
+      </label>
+      <p id="loginError" class="error" hidden></p>
+      <button id="btnLogin" class="primary" type="submit">Entra</button>
+      <div class="loginlang" data-langpick></div>
+    </form>
+  </main>
+
+  <div id="app" hidden>
+    <div class="brandbar">
+      <a id="backLink" class="backbtn" hidden><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>Tutti i rig</a>
+      <img src="logo.svg" alt="" width="30" height="30">
+      <span class="wordmark">minai</span>
+      <button id="btnSelfUpdate" class="newver" hidden></button>
+      <span id="hostName" class="host"></span>
+    </div>
+    <header class="top">
+      <div class="rig">
+        <span id="dot" class="dot"></span>
+        <div class="rigtext">
+          <div class="rigline"><strong id="state">Caricamento…</strong><span id="activeName" class="muted"></span></div>
+          <div id="speed" class="speed" hidden></div>
+        </div>
+      </div>
+      <div class="menu">
+        <button id="btnFan" class="iconbtn fanbtn" aria-label="Autofan"><svg><use href="#i-fan"/></svg><span id="fanLabel"></span></button>
+        <button id="btnMenu" class="iconbtn menubtn" aria-label="Menu" aria-haspopup="menu" aria-expanded="false"><svg><use href="#i-menu"/></svg></button>
+        <div id="menuPanel" class="menupanel" role="menu" hidden>
+          <button id="btnStop" role="menuitem"><svg><use href="#i-stop"/></svg>Ferma miner</button>
+          <button id="btnReboot" role="menuitem"><svg><use href="#i-reboot"/></svg>Reboot</button>
+          <button id="btnPoweroff" role="menuitem" class="danger"><svg><use href="#i-power"/></svg>Shutdown</button>
+          <hr>
+          <button id="btnSelfCheck" role="menuitem"><svg><use href="#i-refresh"/></svg>Controlla aggiornamenti</button>
+          <button id="btnSettings" role="menuitem"><svg><use href="#i-gear"/></svg>Impostazioni</button>
+          <button id="btnLogout" role="menuitem"><svg><use href="#i-exit"/></svg>Esci</button>
+        </div>
+      </div>
+      <div class="sysline" id="sysline" hidden>
+        <div class="chip"><span class="k">Temp CPU</span><span class="v" id="sysCpuTemp">–</span></div>
+        <div class="chip"><span class="k">Carico CPU</span><span class="v" id="sysCpuLoad">–</span></div>
+        <div class="chip"><span class="k" id="sysPowerLabel">Consumo</span><span class="v" id="sysPower">–</span></div>
+      </div>
+    </header>
+
+    <p id="error" class="error banner" hidden></p>
+    <p id="notice" class="notice banner" hidden></p>
+
+    <nav class="tabs" role="tablist" aria-label="Sezioni">
+      <button role="tab" data-tab="generale" aria-controls="tab-generale"><svg><use href="#i-pulse"/></svg><span>Generale</span></button>
+      <button role="tab" data-tab="miner" aria-controls="tab-miner"><svg><use href="#i-box"/></svg><span>Miner <em id="countMiners" class="count"></em></span></button>
+      <button role="tab" data-tab="lanci" aria-controls="tab-lanci"><svg><use href="#i-launch"/></svg><span>Lanci <em id="countLaunches" class="count"></em></span></button>
+      <button role="tab" data-tab="terminale" aria-controls="tab-terminale"><svg><use href="#i-term"/></svg><span>Terminale</span></button>
+    </nav>
+
+    <div id="tab-generale" role="tabpanel" class="tabpanel">
+      <div id="startHint" class="managedbox" hidden>
+        <p><strong>Per iniziare</strong>: questo rig non ha ancora un lancio. Su minai-server vai su <strong>Lanci</strong>, scegli <strong>Avvia su…</strong> e spunta questo rig: il server installa il miner e lo fa partire da solo.</p>
+        <a class="button primary gotoServer" hidden>Vai ai lanci sul server</a>
+      </div>
+      <section id="gpuSection" hidden>
+        <h2>GPU</h2>
+        <div id="gpus" class="gpus"></div>
+      </section>
+      <section>
+        <h2>Log</h2>
+        <pre id="log"></pre>
+      </section>
+    </div>
+
+    <div id="tab-miner" role="tabpanel" class="tabpanel" hidden>
+      <section>
+        <div class="head">
+          <h2>Miner installati</h2>
+          <div class="actions">
+            <button id="btnCheck">Controlla aggiornamenti</button>
+            <button id="btnNewMiner" class="primary">Installa miner</button>
+          </div>
+        </div>
+        <div class="managedbox" hidden>
+          <p>Miner e lanci sono <strong>gestiti da minai-server</strong>: creali e modificali da lì, e il server li aggiorna su questo rig.</p>
+          <a class="button primary gotoServer" hidden>Apri il catalogo sul server</a>
+        </div>
+        <div id="minerForm" class="form card" hidden>
+          <label>Nome <input id="minerName" placeholder="racer" spellcheck="false" autocapitalize="off"></label>
+          <label>Link del pacchetto (.tar.gz, .zip o binario)
+            <input id="minerUrl" placeholder="https://github.com/…/racer-0.9.0.tar.gz" spellcheck="false" autocapitalize="off">
+          </label>
+          <div class="actions">
+            <button id="btnInstall" class="primary">Installa</button>
+            <button id="btnCancelMiner">Annulla</button>
+          </div>
+        </div>
+        <p id="checkInfo" class="muted small"></p>
+        <table class="list">
+          <thead><tr><th>Nome</th><th>Origine</th><th></th></tr></thead>
+          <tbody id="miners"></tbody>
+        </table>
+        <p id="noMiners" class="empty" hidden>Nessun miner installato.</p>
+      </section>
+    </div>
+
+    <div id="tab-lanci" role="tabpanel" class="tabpanel" hidden>
+      <section>
+        <div class="head">
+          <h2>Lanci</h2>
+          <button id="btnNewLaunch" class="primary">Nuovo lancio</button>
+        </div>
+        <div class="managedbox" hidden>
+          <p>Miner e lanci sono <strong>gestiti da minai-server</strong>: creali e modificali da lì. Da qui puoi comunque avviarli e fermarli.</p>
+          <a class="button primary gotoServer" hidden>Apri i lanci sul server</a>
+        </div>
+        <div id="editor" class="form card" hidden>
+          <h3 id="editorTitle"></h3>
+          <div id="newFields" class="row">
+            <label>Nome <input id="launchName" placeholder="tsc-tigerpool" spellcheck="false" autocapitalize="off"></label>
+            <label>Miner <select id="launchMiner"></select></label>
+          </div>
+          <label>Comando completo (pool, wallet, parametri)
+            <textarea id="content" spellcheck="false" autocapitalize="off" rows="12"></textarea>
+          </label>
+          <div class="actions">
+            <button id="btnSave" class="primary">Salva</button>
+            <button id="btnCancel">Annulla</button>
+          </div>
+        </div>
+        <table class="list">
+          <thead><tr><th>Lancio</th><th>Miner</th><th></th></tr></thead>
+          <tbody id="launches"></tbody>
+        </table>
+        <p id="noLaunches" class="empty" hidden>Nessun lancio. Crea il primo con “Nuovo lancio”.</p>
+      </section>
+    </div>
+
+    <div id="tab-terminale" role="tabpanel" class="tabpanel" hidden>
+      <div class="termwrap"><iframe id="termFrame" class="termframe" title="Terminale"></iframe></div>
+      <p class="muted hint">La sessione resta aperta sul rig: se ti disconnetti o cambi app, quando torni riprendi da dove eri.</p>
+    </div>
+
+    <footer class="foot"><span id="appVersion">minai</span><span id="driverVersion"></span></footer>
+  </div>
+
+  <dialog id="setDialog" aria-labelledby="setTitle">
+    <h2 id="setTitle">Impostazioni</h2>
+    <p id="firstRunHint" class="firsthint" hidden>Ultimo passo: collega il rig a Tailscale, poi aggiungilo in minai-server con indirizzo e token qui sotto.</p>
+    <h3>Lingua</h3>
+    <div data-langpick></div>
+    <h3>Tailscale</h3>
+    <div id="tsState" class="tsstate"></div>
+    <div id="tsConnect">
+      <button id="btnTsLink" class="primary">Collega con il tuo account Tailscale</button>
+      <p id="tsLinkBox" class="small" hidden>Accedi a Tailscale nella scheda che si è aperta (se non si è aperta, usa questo link: <a id="tsLink" target="_blank" rel="noopener">accedi a Tailscale</a>). Quando hai fatto, quella scheda si chiude da sola e torni qui.</p>
+      <label>Oppure incolla una chiave di autenticazione
+        <input id="tsKey" placeholder="tskey-auth-…" autocomplete="off" spellcheck="false" autocapitalize="off">
+      </label>
+      <button id="btnTsKey">Collega con la chiave</button>
+    </div>
+    <button id="btnTsLogout" class="danger" hidden>Scollega da Tailscale</button>
+    <h3>Nome del rig</h3>
+    <p class="muted small">In rete locale il rig risponde a <strong>http://<span id="nameLocal">nome</span>.local</strong>.</p>
+    <div class="copyrow"><input id="rigNameInput" autocapitalize="off" autocorrect="off" spellcheck="false"><button id="btnRename">Salva</button></div>
+    <div id="linkBox">
+      <h3>Collegamento a minai-server</h3>
+      <p class="muted small">In minai-server: menu &gt; Aggiungi rig, e incolla questi due valori.</p>
+      <label>Indirizzo Tailscale<div class="copyrow"><code id="setAddr">–</code><button data-copy="setAddr">Copia</button></div></label>
+      <label>Token del rig<div class="copyrow"><code id="setToken">–</code><button data-copy="setToken">Copia</button></div></label>
+    </div>
+    <p id="setMsg" class="error" hidden></p>
+    <div class="actions setclose"><button id="btnSetClose">Chiudi</button></div>
+  </dialog>
+
+  <dialog id="fanDialog" aria-labelledby="fanTitle">
+    <h2 id="fanTitle">Autofan</h2>
+    <label class="switch"><input id="af_enabled" type="checkbox"><span></span>Regola le ventole in automatico</label>
+    <div class="grid">
+      <label>Temperatura obiettivo, °C <input id="af_target" type="number" min="40" max="95" inputmode="numeric"></label>
+      <label>Ventola minima, % <input id="af_min" type="number" min="0" max="100" inputmode="numeric"></label>
+      <label>Ventola massima, % <input id="af_max" type="number" min="0" max="100" inputmode="numeric"></label>
+      <label>Temperatura critica, °C <input id="af_critical" type="number" min="50" max="110" inputmode="numeric"></label>
+      <label>Se si supera la critica
+        <select id="af_action">
+          <option value="stop">Ferma il miner (riparte da solo)</option>
+          <option value="reboot">Reboot</option>
+          <option value="poweroff">Shutdown</option>
+          <option value="none">Nessuna azione</option>
+        </select>
+      </label>
+    </div>
+    <p class="muted small">La temperatura critica e la sua azione valgono anche con l'autofan spento. Con l'autofan acceso, la ventola impostata nell'overclock viene ignorata.</p>
+    <div id="fanStatus" class="fanstatus"></div>
+    <div class="actions">
+      <button id="btnFanSave" class="primary">Salva</button>
+      <button id="btnFanClose">Chiudi</button>
+    </div>
+    <p id="fanMsg" class="error" hidden></p>
+  </dialog>
+
+  <dialog id="ocDialog" aria-labelledby="ocTitle">
+    <h2 id="ocTitle">Overclock</h2>
+    <div class="grid">
+      <label>Core Clock Offset, MHz <input id="oc_core_offset" type="number" step="1"></label>
+      <label>Lock Core Clock, MHz <input id="oc_lock_core" type="number" min="0" inputmode="numeric"></label>
+      <label>Memory Clock Offset, MHz <input id="oc_mem_offset" type="number" step="1"></label>
+      <label>Lock Memory Clock, MHz <input id="oc_lock_mem" type="number" min="0" inputmode="numeric"></label>
+      <label>Power Limit, W <input id="oc_power" type="number" min="0" inputmode="numeric"></label>
+      <label>Ritardo prima di applicare, s <input id="oc_delay" type="number" min="0" inputmode="numeric"></label>
+      <label>Ventola, % (0 = auto) <input id="oc_fan" type="number" min="0" max="100" inputmode="numeric"></label>
+    </div>
+    <div class="actions">
+      <button id="btnOcApply" class="primary">Salva e applica</button>
+      <button id="btnOcReset">Azzera</button>
+      <button id="btnOcClose">Chiudi</button>
+    </div>
+    <pre id="ocOut" class="ocout" hidden></pre>
+  </dialog>
+</body>
+</html>

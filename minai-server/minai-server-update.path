@@ -1,0 +1,8 @@
+[Unit]
+Description=Aggiornamento di minai-server richiesto dal pannello
+
+[Path]
+PathExists=/opt/minai-server/update-request
+
+[Install]
+WantedBy=multi-user.target

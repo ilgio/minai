@@ -1,0 +1,17 @@
+[Unit]
+Description=Miner attivo (lancio scelto dal pannello minai)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/miners/active.sh
+# fermato a mano dal pannello: resta fermo anche dopo un riavvio del rig
+ConditionPathExists=!/opt/miners/stopped
+
+[Service]
+# script crea un terminale virtuale: il miner scrive subito ogni riga invece di accumularle
+Environment=TERM=xterm
+ExecStart=/usr/bin/script -qfec "/bin/bash /opt/miners/active.sh" /dev/null
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

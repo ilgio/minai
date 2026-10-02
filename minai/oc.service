@@ -1,0 +1,11 @@
+[Unit]
+Description=Overclock GPU (pannello Miner)
+After=nvidia-persistenced.service systemd-modules-load.service
+ConditionPathExists=/opt/miners/oc.json
+
+[Service]
+Type=oneshot
+ExecStart=/opt/miners/venv/bin/python3 /opt/miners/oc.py
+
+[Install]
+WantedBy=multi-user.target

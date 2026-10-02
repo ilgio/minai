@@ -1,0 +1,50 @@
+# minai: installazione automatica di Ubuntu Server sul disco del rig.
+# Letta dall'installer di Ubuntu 24.04 dalla radice della chiavetta.
+autoinstall:
+  version: 1
+  locale: it_IT.UTF-8
+  keyboard:
+    layout: it
+  timezone: Europe/Rome
+  identity:
+    hostname: minai-rig
+    realname: minai
+    username: user
+    # password della console: minai (il pannello ha la sua, scelta al primo accesso)
+    password: "$6$minairig$MoRcOqSvuIkxPeDpjqMwqrnFVeKbizhd8ClZrL9fHk.SeahqbdRlBy9aNlSROAscCMPNZk6XGCL1ZO9QHcnMj1"
+  ssh:
+    install-server: false
+  kernel:
+    flavor: hwe
+  storage:
+    layout:
+      name: direct
+      match:
+        size: largest
+  packages:
+    - curl
+    - unzip
+    - pciutils
+    - avahi-daemon
+    - avahi-utils
+  updates: security
+  early-commands:
+    # schermata fissa con logo e avanzamento al posto delle scritte dell'installatore
+    - setsid -f bash /cdrom/minai/install-progress.sh >/dev/null 2>&1 </dev/null
+  late-commands:
+    - touch /run/minai-late
+    - mkdir -p /target/usr/local/lib/minai
+    - cp /cdrom/minai/screen.sh /target/usr/local/lib/minai/screen.sh
+    # avvio silenzioso del sistema installato (niente scritte tecniche sullo schermo)
+    - sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"/' /target/etc/default/grub
+    - curtin in-target --target=/target -- update-grub
+    - cp /cdrom/minai/firstboot.sh /target/usr/local/sbin/minai-firstboot.sh
+    - chmod 755 /target/usr/local/sbin/minai-firstboot.sh
+    - cp /cdrom/minai/minai-firstboot.service /target/etc/systemd/system/minai-firstboot.service
+    - curtin in-target --target=/target -- systemctl enable minai-firstboot.service
+    - bash /cdrom/minai/make-issue.sh > /target/etc/issue
+    - echo 'user ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/90-minai
+    - chmod 440 /target/etc/sudoers.d/90-minai
+    # segno per la chiavetta: questo disco ha già minai, non reinstallare se si riavvia da lì
+    - touch /target/etc/minai-installed
+  shutdown: reboot

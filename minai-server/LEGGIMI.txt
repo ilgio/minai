@@ -1,0 +1,32 @@
+MINAI SERVER - PANNELLO CENTRALE DEI RIG
+========================================
+
+Installazione (nel container, come root):
+  bash install.sh                      collega Tailscale con un link/QR da aprire una volta
+  bash install.sh tskey-auth-XXXX      oppure con una chiave Tailscale, senza login
+Poi apri http://<IP-Tailscale>:8090 e al primo accesso scegli la password.
+
+Container Proxmox: unprivileged con nesting attivo, e /dev/net/tun passato al container
+(Resources > Add > Device Passthrough > /dev/net/tun). Se manca, l'installer lo segnala.
+
+Collegare un rig:
+  1. sul rig installa minai (v0.6 o successiva) e Tailscale, con lo stesso account del server;
+  2. sul rig leggi indirizzo e token:
+       tailscale ip -4
+       sudo python3 /opt/miners/panel/server.py --token
+  3. in minai-server: menu > Aggiungi rig, e incolla nome, indirizzo e token.
+
+Cambiare password:
+  python3 /opt/minai-server/server.py --password   (come root)
+  systemctl restart minai-server
+
+Nota: minai-server raggiunge i rig sulla porta 8080 attraverso Tailscale.
+Non esporlo su internet: accedi dalla rete dell'ufficio, in VPN o via Tailscale.
+
+Miner e lanci condivisi (v0.7):
+  - Tab Miner e Lanci: il catalogo vale per tutti i rig.
+  - Per partire da quello che hai già: impostazioni del rig (⋯) > "Importa miner e lanci da questo rig".
+    Il nome del rig viene sostituito dal segnaposto %WORKER_NAME%, che su ogni rig diventa il suo nome.
+    I percorsi sono uguali su tutti i rig: miner in /home/user/miners, modelli in /home/user/models.
+  - "Avvia su…" su un lancio: scegli i rig; se manca il miner viene installato da solo.
+  - Modificando un lancio, i rig che lo stanno usando vengono aggiornati e riavviati (si può togliere la spunta).

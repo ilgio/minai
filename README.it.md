@@ -1,0 +1,167 @@
+<p align="center">
+  <img src="docs/logo.svg" width="96" alt="logo minai">
+</p>
+
+<h1 align="center">minai</h1>
+
+<p align="center">
+  <b>Pannello self-hosted per gestire i rig di mining GPU.</b><br>
+  Controlla, configura e aggiorna tutti i tuoi rig da una sola pagina, dal telefono o dal computer.<br>
+  Senza abbonamento, senza account cloud, senza costi per rig.
+</p>
+
+<p align="center">
+  <a href="https://github.com/ilgio/minai/releases/latest"><img src="https://img.shields.io/github/v/release/ilgio/minai?label=release&color=f0a43a" alt="Ultima versione"></a>
+  <img src="https://img.shields.io/badge/platform-Ubuntu%2024.04-2f6bf0" alt="Ubuntu 24.04">
+  <img src="https://img.shields.io/badge/GPU-NVIDIA-3fcf8e" alt="NVIDIA">
+</p>
+
+<p align="center"><a href="README.md">🇬🇧 Read in English</a></p>
+
+<p align="center">
+  <img src="docs/server-dashboard.png" width="760" alt="Dashboard di minai-server">
+</p>
+
+---
+
+## Cosa fa
+
+minai è fatto di due parti:
+
+- **minai** gira su ogni rig: miner, lanci, overclock, autofan, log in tempo reale, terminale.
+- **minai-server** è la dashboard centrale: vede tutti i rig e tiene un catalogo condiviso di miner e lanci.
+
+| | |
+|---|---|
+| 📊 **Dashboard in tempo reale** | Hashrate, temperatura GPU, consumo, ventole e CPU di ogni rig, più i totali della farm. |
+| 🚀 **Lanci condivisi** | Scrivi un lancio una volta e avvialo su qualsiasi rig. Il miner viene scaricato e installato da solo. `%WORKER_NAME%` diventa il nome del rig. |
+| 🎛️ **Overclock e autofan** | Offset di core e memoria, clock bloccati, power limit. Autofan come HiveOS, con temperatura obiettivo e critica. |
+| 💻 **Terminale vero** | Un terminale completo nel browser (htop, nano, sudo…), con la sessione che resta aperta sul rig. |
+| 🔄 **Aggiornamenti con un tocco** | minai controlla su GitHub le nuove versioni di sé stesso e dei tuoi miner, e li aggiorna dal pannello. Il mining non si ferma. |
+| 💿 **Chiavetta di installazione** | Inserisci la chiavetta in un rig con l'SSD vuoto e accendilo: non servono monitor né tastiera. |
+| 🔒 **Privato per scelta** | Niente è esposto su internet: rig e server comunicano con [Tailscale](https://tailscale.com). |
+| 📱 **Comodo sul telefono** | Tema scuro, tab in basso su iPhone, si aggiunge alla schermata Home come un'app. |
+| 🌍 **Italiano e inglese** | La lingua si cambia dalle Impostazioni. |
+
+<p align="center">
+  <img src="docs/rig-panel.png" width="300" alt="Pannello del rig su iPhone">
+</p>
+
+## Come funziona
+
+```mermaid
+flowchart LR
+  you["📱 Tu<br>telefono / computer"] -- browser --> server["minai-server<br>(container o VM)"]
+  server -- Tailscale --> r1["⛏️ rig 1<br>minai"]
+  server -- Tailscale --> r2["⛏️ rig 2<br>minai"]
+  server -- Tailscale --> r3["⛏️ rig 3<br>minai"]
+  server -. nuove versioni .-> gh["Release su GitHub"]
+```
+
+I rig possono stare ovunque (ufficio, casa, un garage): Tailscale li collega senza aprire porte sui router.
+
+## Cosa serve
+
+- **Rig:** PC x86-64 con GPU NVIDIA, cavo di rete, un SSD su cui installare (viene **cancellato**).
+- **Server:** una piccola macchina, container o VM Debian/Ubuntu (1 CPU, 512 MB di RAM, 4 GB di disco). Non serve un IP pubblico.
+- **Un account [Tailscale](https://tailscale.com) gratuito**, usato solo da minai. Consigliamo un account dedicato, separato da quello personale o di lavoro.
+
+## Installazione veloce
+
+### 1. Installa minai-server
+
+Su una macchina, container o VM Debian/Ubuntu, come root:
+
+```bash
+apt install -y curl
+curl -fsSL https://github.com/ilgio/minai/releases/latest/download/get-server.sh | bash
+```
+
+Compare un QR code: inquadralo con il telefono e accedi a Tailscale. Poi apri l'indirizzo che compare alla fine, per esempio `http://100.x.x.x:8090`, da un dispositivo collegato allo stesso account Tailscale, e scegli la password del pannello.
+
+> **Container Proxmox (LXC):** usa un container unprivileged con *nesting* attivo, e passagli `/dev/net/tun` (*Resources → Add → Device Passthrough*). Se manca, l'installer te lo dice.
+
+### 2. Installa i rig
+
+**Con la chiavetta (consigliato)**
+
+1. Su una qualsiasi macchina Ubuntu/Debian (o un Mac con `xorriso`), crea l'immagine:
+   ```bash
+   sudo apt install -y xorriso unzip
+   curl -fsSLO https://github.com/ilgio/minai/releases/latest/download/minai-installer.zip
+   unzip minai-installer.zip && cd minai-installer && bash build-iso.sh
+   ```
+2. Scrivi `minai-installer.iso` su una chiavetta con [balenaEtcher](https://etcher.balena.io).
+3. Inseriscila nel rig (con il cavo di rete collegato) e accendilo. Dopo 10 secondi l'installazione parte da sola, poi il rig configura driver NVIDIA, minai e Tailscale. Ci vogliono circa 30-40 minuti e due riavvii.
+
+<p align="center"><img src="docs/install-screen.png" width="560" alt="Schermata di installazione"></p>
+
+> ⚠️ **La chiavetta cancella il disco più grande di qualsiasi PC che si avvia da lì** (a meno che non ci sia già minai). Etichettala e tienila al sicuro.
+
+**Su un Ubuntu Server 24.04 già installato**, con il driver NVIDIA già presente (come utente normale, non root):
+
+```bash
+curl -fsSLO https://github.com/ilgio/minai/releases/latest/download/minai.zip
+unzip minai.zip && bash minai/install.sh
+```
+
+### 3. Collega il rig
+
+1. Dal telefono o dal computer, nella stessa rete, apri **`http://minai-setup.local`** (oppure l'indirizzo IP che compare sullo schermo del rig).
+2. Scegli il **nome del rig** e la sua **password**.
+3. Si aprono da sole le Impostazioni: **collega Tailscale** con lo stesso account del server.
+4. In minai-server: **menu → Aggiungi rig**, e incolla indirizzo e token che trovi nelle Impostazioni del rig.
+
+### 4. Inizia a minare
+
+- Tab **Miner**: aggiungi un miner con il link alla sua release (`.tar.gz`, `.zip` o binario). Gli aggiornamenti delle release GitHub vengono controllati da soli.
+- Tab **Lanci**: scrivi il comando completo (pool, wallet, opzioni), con `%WORKER_NAME%` al posto del nome del rig, per esempio:
+  ```bash
+  #!/bin/bash
+  cd /home/user/miners/srbminer
+  exec ./SRBMiner-MULTI --algorithm pearlhash --pool stratum+tcp://pool:3333 --wallet WALLET.%WORKER_NAME%
+  ```
+- **Avvia su…**: scegli i rig. Se manca il miner viene installato, poi il lancio parte.
+
+Hai già un rig con miner e lanci? Apri le sue impostazioni (⋯) in minai-server e scegli **Importa miner e lanci da questo rig**.
+
+## Aggiornamenti
+
+Quando esce una nuova versione, accanto al logo compare il badge arancione **vX.Y disponibile**. Toccalo per aggiornare minai-server; i rig mostrano il pulsante **aggiorna** sulla loro scheda, oppure li aggiorni tutti insieme. Il mining non si ferma durante gli aggiornamenti.
+
+<p align="center"><img src="docs/boot-screen.png" width="560" alt="Schermata del rig all'avvio"></p>
+
+## Buono a sapersi
+
+- **Scadenza di Tailscale:** di default Tailscale chiede ai dispositivi di rifare l'accesso ogni 180 giorni. minai-server ti avvisa e ti mostra, con un'immagine, come disattivarla una volta per dispositivo.
+- **`minai-setup.local` non si apre?** I nomi `.local` funzionano solo dentro la stessa rete. Se telefono e rig sono su reti/VLAN diverse, usa l'indirizzo IP che compare sullo schermo del rig, oppure attiva l'mDNS nel router.
+- **Il miner fermato resta fermo:** se fermi il miner dal pannello, non riparte dopo un riavvio finché non avvii un lancio.
+- **TensorCash:** il file del modello di intelligenza artificiale (circa 9 GB) non è un miner, quindi non viene copiato da solo: copialo una volta in `/home/user/models` su ogni rig.
+- **Registri:** primo avvio `/var/log/minai-firstboot.log`, aggiornamenti del rig `/opt/miners/update.log`.
+
+## Sicurezza
+
+- minai-server e i rig non sono mai esposti su internet: si raggiungono solo attraverso la tua rete Tailscale.
+- Ogni rig ha il suo token, che revochi togliendo il rig dal server.
+- I pannelli sono protetti da password, con una sessione di 30 giorni.
+- Gli aggiornamenti si installano dalle release di questo repository, e solo quando tocchi il badge. Proteggi il tuo account GitHub con l'autenticazione a due fattori.
+- La console dei rig installati con la chiavetta ha utente `user` e password `minai`: cambiala con `passwd` se il rig è accessibile fisicamente ad altri.
+
+## Struttura del repository
+
+| Cartella | Contenuto |
+|---|---|
+| `minai/` | Pannello del rig e servizi (miner, overclock, autofan, terminale). |
+| `minai-server/` | Dashboard centrale. |
+| `minai-installer/` | Chiavetta di installazione: installazione automatica di Ubuntu, configurazione al primo avvio, schermate. |
+| `docs/` | Immagini di questo README. |
+
+Ogni release contiene `minai.zip`, `minai-server.zip`, `minai-installer.zip` e `get-server.sh`, creati da queste cartelle.
+
+## Avvertenze
+
+minai è un progetto indipendente, non collegato a HiveOS, NVIDIA o Tailscale. Overclock e mining possono danneggiare l'hardware se configurati male: lo usi a tuo rischio.
+
+## Licenza
+
+Vedi [LICENSE](LICENSE).

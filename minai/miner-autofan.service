@@ -1,0 +1,11 @@
+[Unit]
+Description=Autofan GPU (pannello minai)
+After=nvidia-persistenced.service systemd-modules-load.service
+
+[Service]
+ExecStart=/opt/miners/venv/bin/python3 /opt/miners/autofan.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

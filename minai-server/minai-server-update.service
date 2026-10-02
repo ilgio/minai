@@ -1,0 +1,7 @@
+[Unit]
+Description=Aggiorna minai-server all'ultima versione
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/rm -f /opt/minai-server/update-request
+ExecStart=/bin/bash -c '/usr/local/lib/minai-server/update.sh > /var/log/minai-server-update.log 2>&1'

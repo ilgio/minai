@@ -1,0 +1,13 @@
+[Unit]
+Description=minai: prima configurazione del rig (driver, minai, Tailscale)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/var/lib/minai-firstboot.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/minai-firstboot.sh
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

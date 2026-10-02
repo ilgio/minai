@@ -1,0 +1,27 @@
+MINAI - PANNELLO DEL RIG
+========================
+
+Installazione (sul rig, come utente normale, NON con sudo):
+  bash install.sh
+
+Alla prima installazione chiede la password del pannello.
+Il pannello risponde su http://IP-DEL-RIG:8080 (porta diversa: PORT=9000 bash install.sh).
+
+Cambiare password:
+  sudo python3 /opt/miners/panel/server.py --password
+  sudo systemctl restart miner-panel
+
+Aggiornare il pannello: scarica la nuova versione e rilancia bash install.sh
+(lanci, miner, overclock e password restano quelli che hai).
+
+Percorsi:
+  /opt/miners/panel/       server e pagina web
+  /opt/miners/scripts/     lanci
+  /opt/miners/oc.json      overclock
+  ~/miners/                miner installati
+  ~/models/                modelli (es. TensorCash)
+
+Collegare il rig a minai-server:
+  curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
+  tailscale ip -4                                    (indirizzo da dare al server)
+  sudo python3 /opt/miners/panel/server.py --token   (token da dare al server)

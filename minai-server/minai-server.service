@@ -1,0 +1,17 @@
+[Unit]
+Description=minai server (pannello centrale dei rig)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+User=minai
+ExecStart=/usr/bin/python3 /opt/minai-server/server.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/minai-server -/run/tailscale -/var/run/tailscale
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
