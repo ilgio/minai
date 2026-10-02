@@ -34,7 +34,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
-VERSION = "0.9.10"
+VERSION = "0.9.11"
 ROOT = os.environ.get("MINAI_SERVER_ROOT", "/opt/minai-server")
 CONF = f"{ROOT}/config.json"
 DB = f"{ROOT}/minai.db"

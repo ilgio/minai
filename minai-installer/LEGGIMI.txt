@@ -3,7 +3,7 @@ MINAI - CHIAVETTA DI INSTALLAZIONE PER I RIG
 
 ATTENZIONE: installa Ubuntu e minai sul disco più grande del rig, CANCELLANDOLO.
 
-1. Crea l'immagine (una volta, su Mac o Linux):
+1. Crea l'immagine (solo per chi pubblica minai: gli utenti scaricano la ISO pronta):
      Mac:    brew install xorriso
      Linux:  sudo apt install xorriso
      bash build-iso.sh

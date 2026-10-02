@@ -85,14 +85,9 @@ Compare un QR code: inquadralo con il telefono e accedi a Tailscale. Poi apri l'
 
 **Con la chiavetta (consigliato)**
 
-1. Su una qualsiasi macchina Ubuntu/Debian (o un Mac con `xorriso`), crea l'immagine:
-   ```bash
-   sudo apt install -y xorriso unzip
-   curl -fsSLO https://github.com/ilgio/minai/releases/latest/download/minai-installer.zip
-   unzip minai-installer.zip && cd minai-installer && bash build-iso.sh
-   ```
-2. Scrivi `minai-installer.iso` su una chiavetta con [balenaEtcher](https://etcher.balena.io).
-3. Inseriscila nel rig (con il cavo di rete collegato) e accendilo. Dopo 10 secondi l'installazione parte da sola, poi il rig configura driver NVIDIA, minai e Tailscale. Ci vogliono circa 30-40 minuti e due riavvii.
+1. Scarica **`minai-installer.iso`**: il link è nelle note dell'[ultima release](https://github.com/ilgio/minai/releases/latest).
+2. Scrivila su una chiavetta (da 8 GB in su) con [balenaEtcher](https://etcher.balena.io).
+3. Inseriscila nel rig (con il cavo di rete collegato) e accendilo. Dopo 10 secondi l'installazione parte da sola, poi il rig configura driver NVIDIA, minai e Tailscale. Ci vogliono circa 30-40 minuti e due riavvii. Non servono monitor né tastiera.
 
 <p align="center"><img src="docs/install-screen.png" width="560" alt="Schermata di installazione"></p>
 
@@ -136,7 +131,6 @@ Quando esce una nuova versione, accanto al logo compare il badge arancione **vX.
 - **Scadenza di Tailscale:** di default Tailscale chiede ai dispositivi di rifare l'accesso ogni 180 giorni. minai-server ti avvisa e ti mostra, con un'immagine, come disattivarla una volta per dispositivo.
 - **`minai-setup.local` non si apre?** I nomi `.local` funzionano solo dentro la stessa rete. Se telefono e rig sono su reti/VLAN diverse, usa l'indirizzo IP che compare sullo schermo del rig, oppure attiva l'mDNS nel router.
 - **Il miner fermato resta fermo:** se fermi il miner dal pannello, non riparte dopo un riavvio finché non avvii un lancio.
-- **TensorCash:** il file del modello di intelligenza artificiale (circa 9 GB) non è un miner, quindi non viene copiato da solo: copialo una volta in `/home/user/models` su ogni rig.
 - **Registri:** primo avvio `/var/log/minai-firstboot.log`, aggiornamenti del rig `/opt/miners/update.log`.
 
 ## Sicurezza
@@ -153,10 +147,10 @@ Quando esce una nuova versione, accanto al logo compare il badge arancione **vX.
 |---|---|
 | `minai/` | Pannello del rig e servizi (miner, overclock, autofan, terminale). |
 | `minai-server/` | Dashboard centrale. |
-| `minai-installer/` | Chiavetta di installazione: installazione automatica di Ubuntu, configurazione al primo avvio, schermate. |
+| `minai-installer/` | Sorgenti della chiavetta di installazione (vedi [BUILD.md](minai-installer/BUILD.md) per creare la ISO). |
 | `docs/` | Immagini di questo README. |
 
-Ogni release contiene `minai.zip`, `minai-server.zip`, `minai-installer.zip` e `get-server.sh`, creati da queste cartelle.
+Ogni release contiene `minai.zip`, `minai-server.zip` e `get-server.sh`, creati da queste cartelle. La ISO della chiavetta è pubblicata a parte, perché supera il limite di 2 GB per file di GitHub.
 
 ## Avvertenze
 
@@ -164,4 +158,4 @@ minai è un progetto indipendente, non collegato a HiveOS, NVIDIA o Tailscale. O
 
 ## Licenza
 
-Vedi [LICENSE](LICENSE).
+minai è distribuito con licenza [GNU AGPL-3.0](LICENSE): puoi usarlo, modificarlo e condividerlo liberamente, ma le versioni modificate, anche quelle offerte come servizio online, devono restare open source con la stessa licenza e mantenere la citazione dell'autore originale.

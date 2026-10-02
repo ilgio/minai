@@ -19,7 +19,7 @@ Percorsi:
   /opt/miners/scripts/     lanci
   /opt/miners/oc.json      overclock
   ~/miners/                miner installati
-  ~/models/                modelli (es. TensorCash)
+  ~/models/                file grandi usati da alcuni miner (per esempio modelli)
 
 Collegare il rig a minai-server:
   curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
