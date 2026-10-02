@@ -450,7 +450,9 @@ async function gpus() {
     const card = el("article", "gpu");
     const head = el("div", "gpu-head");
     const title = el("div", "gpu-name");
-    title.append(el("span", "", `#${i}`), name);
+    title.append(el("span", "", `#${i}`), el("b", "full", name),
+                 el("b", "short", name.replace(/^NVIDIA (GeForce )?/, "")));
+    title.title = name;
     const b = button("OC", () => openOc(i, name), "iconbtn");
     b.insertAdjacentHTML("afterbegin", OC_ICON);
     b.setAttribute("aria-label", `Overclock GPU ${i}`);

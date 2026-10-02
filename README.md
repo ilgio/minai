@@ -85,9 +85,17 @@ A QR code appears: scan it with your phone and log in to Tailscale. Then open th
 
 **With the USB installer (recommended)**
 
-1. Download **`minai-installer.iso`**: the link is in the notes of the [latest release](https://github.com/ilgio/minai/releases/latest).
-2. Write it to a USB stick (8 GB or more) with [balenaEtcher](https://etcher.balena.io).
-3. Plug it into the rig (network cable connected) and switch it on. After 10 seconds the installation starts by itself, then the rig configures NVIDIA drivers, minai and Tailscale. It takes about 30–40 minutes and reboots twice. No monitor or keyboard needed.
+1. Download **[minai-installer.iso](https://archive.org/download/minai-installer/minai-installer.iso)** (3.4 GB, hosted on the Internet Archive).
+2. Optional: check that the download is intact. The result must match:
+
+   | | |
+   |---|---|
+   | SHA-256 | `1ffd0a88b23b5eaeb0839b03a896d9dfe99c236d0b65c34aaba2fe41c5fb3042` |
+   | MD5 | `5f32ce8e413fd5f5053c6d96cb3b1951` |
+
+   Mac/Linux: `shasum -a 256 minai-installer.iso` · Windows: `certutil -hashfile minai-installer.iso SHA256`
+3. Write it to a USB stick (8 GB or more) with [balenaEtcher](https://etcher.balena.io).
+4. Plug it into the rig (network cable connected) and switch it on. After 10 seconds the installation starts by itself, then the rig configures NVIDIA drivers, minai and Tailscale. It takes about 30–40 minutes and reboots twice. No monitor or keyboard needed.
 
 <p align="center"><img src="docs/install-screen.png" width="560" alt="Installation screen"></p>
 
@@ -152,7 +160,7 @@ When a new version is published, an orange **vX.Y available** badge appears next
 | `minai-installer/` | Sources of the USB installer (see [BUILD.md](minai-installer/BUILD.md) to build the ISO). |
 | `docs/` | Images for this README. |
 
-Each release contains `minai.zip`, `minai-server.zip` and `get-server.sh`, built from these folders. The installer ISO is published separately (it's larger than GitHub's 2 GB limit per file).
+Each release contains `minai.zip`, `minai-server.zip` and `get-server.sh`, built from these folders. The installer ISO is on the [Internet Archive](https://archive.org/download/minai-installer/minai-installer.iso), because it's larger than GitHub's 2 GB limit per file.
 
 ## Disclaimer
 

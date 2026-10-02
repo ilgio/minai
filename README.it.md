@@ -85,9 +85,17 @@ Compare un QR code: inquadralo con il telefono e accedi a Tailscale. Poi apri l'
 
 **Con la chiavetta (consigliato)**
 
-1. Scarica **`minai-installer.iso`**: il link è nelle note dell'[ultima release](https://github.com/ilgio/minai/releases/latest).
-2. Scrivila su una chiavetta (da 8 GB in su) con [balenaEtcher](https://etcher.balena.io).
-3. Inseriscila nel rig (con il cavo di rete collegato) e accendilo. Dopo 10 secondi l'installazione parte da sola, poi il rig configura driver NVIDIA, minai e Tailscale. Ci vogliono circa 30-40 minuti e due riavvii. Non servono monitor né tastiera.
+1. Scarica **[minai-installer.iso](https://archive.org/download/minai-installer/minai-installer.iso)** (3,4 GB, ospitata su Internet Archive).
+2. Facoltativo: controlla che il download sia integro. Il risultato deve coincidere con:
+
+   | | |
+   |---|---|
+   | SHA-256 | `1ffd0a88b23b5eaeb0839b03a896d9dfe99c236d0b65c34aaba2fe41c5fb3042` |
+   | MD5 | `5f32ce8e413fd5f5053c6d96cb3b1951` |
+
+   Mac/Linux: `shasum -a 256 minai-installer.iso` · Windows: `certutil -hashfile minai-installer.iso SHA256`
+3. Scrivila su una chiavetta (da 8 GB in su) con [balenaEtcher](https://etcher.balena.io).
+4. Inseriscila nel rig (con il cavo di rete collegato) e accendilo. Dopo 10 secondi l'installazione parte da sola, poi il rig configura driver NVIDIA, minai e Tailscale. Ci vogliono circa 30-40 minuti e due riavvii. Non servono monitor né tastiera.
 
 <p align="center"><img src="docs/install-screen.png" width="560" alt="Schermata di installazione"></p>
 
@@ -152,7 +160,7 @@ Quando esce una nuova versione, accanto al logo compare il badge arancione **vX.
 | `minai-installer/` | Sorgenti della chiavetta di installazione (vedi [BUILD.md](minai-installer/BUILD.md) per creare la ISO). |
 | `docs/` | Immagini di questo README. |
 
-Ogni release contiene `minai.zip`, `minai-server.zip` e `get-server.sh`, creati da queste cartelle. La ISO della chiavetta è pubblicata a parte, perché supera il limite di 2 GB per file di GitHub.
+Ogni release contiene `minai.zip`, `minai-server.zip` e `get-server.sh`, creati da queste cartelle. La ISO della chiavetta è su [Internet Archive](https://archive.org/download/minai-installer/minai-installer.iso), perché supera il limite di 2 GB per file di GitHub.
 
 ## Avvertenze
 
