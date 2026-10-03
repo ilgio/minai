@@ -126,6 +126,7 @@ unzip minai.zip && bash minai/install.sh
   cd /home/user/miners/srbminer
   exec ./SRBMiner-MULTI --algorithm pearlhash --pool stratum+tcp://pool:3333 --wallet WALLET.%WORKER_NAME%
   ```
+- **GPUs per rig:** each GPU card in the rig panel has an **Enabled/Disabled** switch. Most miners simply don't see disabled GPUs. For miners that need an explicit GPU list, write `%GPU_ENABLED%` in the launch: it becomes the rig's enabled GPUs, for example `0,1`. Don't hard-code GPU numbers in shared launches.
 - **Start on…**: pick the rigs. Missing miners are installed, then the launch starts.
 
 Already have a rig with miners and launches? Open its settings (⋯) in minai-server and choose **Import miners and launches from this rig**.
@@ -165,6 +166,20 @@ Each release contains `minai.zip`, `minai-server.zip` and `get-server.sh`, built
 ## Disclaimer
 
 minai is an independent project, not affiliated with HiveOS, NVIDIA or Tailscale. Overclocking and mining can damage hardware if misconfigured: use it at your own risk.
+
+## Support minai
+
+minai is free and open source. If you find it useful, you can support its development with a crypto donation. Thank you! ♥
+
+| Coin | Network | Address |
+|---|---|---|
+| **BTC** | Bitcoin | `bc1qwu78fsvm0xsg5s9pmclktetaxzc8fnea0vxy08` |
+| **ETH** | Ethereum | `0x7192010b5a6A29844530b01078A11277e3Fc40AF` |
+| **USDT** | Ethereum (ERC-20) or BNB Smart Chain (BEP-20) | `0x7192010b5a6A29844530b01078A11277e3Fc40AF` |
+| **BNB** | BNB Smart Chain (BEP-20) | `0x7192010b5a6A29844530b01078A11277e3Fc40AF` |
+| **SOL** | Solana | `8EnZmovmtahHDPwg3FGTvUabgixCAFeLbnYtmzjty1r7` |
+
+Send only on the network shown: funds sent on a different network may be lost. The same addresses, with QR codes, are in the panel under **♥ Donate**.
 
 ## License
 

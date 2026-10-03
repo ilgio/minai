@@ -126,6 +126,7 @@ unzip minai.zip && bash minai/install.sh
   cd /home/user/miners/srbminer
   exec ./SRBMiner-MULTI --algorithm pearlhash --pool stratum+tcp://pool:3333 --wallet WALLET.%WORKER_NAME%
   ```
+- **GPU per rig:** ogni scheda GPU nel pannello del rig ha l'interruttore **Attiva/Disattivata**. La maggior parte dei miner semplicemente non vede le GPU disattivate. Per i miner che vogliono l'elenco delle GPU, scrivi `%GPU_ENABLED%` nel lancio: diventa l'elenco delle GPU attive del rig, per esempio `0,1`. Nei lanci condivisi non scrivere numeri di GPU fissi.
 - **Avvia su…**: scegli i rig. Se manca il miner viene installato, poi il lancio parte.
 
 Hai già un rig con miner e lanci? Apri le sue impostazioni (⋯) in minai-server e scegli **Importa miner e lanci da questo rig**.
@@ -165,6 +166,20 @@ Ogni release contiene `minai.zip`, `minai-server.zip` e `get-server.sh`, creati 
 ## Avvertenze
 
 minai è un progetto indipendente, non collegato a HiveOS, NVIDIA o Tailscale. Overclock e mining possono danneggiare l'hardware se configurati male: lo usi a tuo rischio.
+
+## Sostieni minai
+
+minai è gratuito e open source. Se ti è utile, puoi sostenerne lo sviluppo con una donazione in crypto. Grazie! ♥
+
+| Moneta | Rete | Indirizzo |
+|---|---|---|
+| **BTC** | Bitcoin | `bc1qwu78fsvm0xsg5s9pmclktetaxzc8fnea0vxy08` |
+| **ETH** | Ethereum | `0x7192010b5a6A29844530b01078A11277e3Fc40AF` |
+| **USDT** | Ethereum (ERC-20) o BNB Smart Chain (BEP-20) | `0x7192010b5a6A29844530b01078A11277e3Fc40AF` |
+| **BNB** | BNB Smart Chain (BEP-20) | `0x7192010b5a6A29844530b01078A11277e3Fc40AF` |
+| **SOL** | Solana | `8EnZmovmtahHDPwg3FGTvUabgixCAFeLbnYtmzjty1r7` |
+
+Invia solo sulla rete indicata: i fondi inviati su una rete diversa possono andare persi. Gli stessi indirizzi, con i QR code, sono nel pannello alla voce **♥ Dona**.
 
 ## Licenza
 

@@ -42,6 +42,7 @@ sudo install -m 644 www/index.html www/miners.css www/miners.js www/i18n.js www/
 sudo install -m 755 oc.py /opt/miners/oc.py
 sudo install -m 755 autofan.py /opt/miners/autofan.py
 sudo install -m 755 update.sh /opt/miners/update.sh
+sudo install -m 755 run-launch.sh /opt/miners/run-launch.sh
 sudo install -m 644 miner.service oc.service miner-panel.service miner-autofan.service /etc/systemd/system/
 sed -e "s|TTYD_BIN|$(command -v ttyd)|" -e "s|OWNER_USER|$U|" miner-terminal.service \
   | sudo tee /etc/systemd/system/miner-terminal.service >/dev/null

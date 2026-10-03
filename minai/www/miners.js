@@ -78,7 +78,7 @@ $("loginForm").addEventListener("submit", async ev => {
   if (setupMode && password !== $("loginRepeat").value) { msg("loginError", "Le due password non coincidono."); return; }
   const name = $("setupName").value.trim().toLowerCase();
   if (setupMode && !/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/.test(name)) {
-    msg("loginError", "Nome del rig: lettere minuscole, numeri e trattini, senza spazi (per esempio backup3).");
+    msg("loginError", "Nome del rig: lettere minuscole, numeri e trattini, senza spazi (per esempio rig-01).");
     return;
   }
   const res = await fetch(setupMode ? "api/setup" : "api/login", {
@@ -446,8 +446,9 @@ async function gpus() {
   const box = $("gpus");
   box.replaceChildren();
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-  for (const [i, name, t, p, u, sm, mem, fan] of list) {
-    const card = el("article", "gpu");
+  for (const [i, name, t, p, u, sm, mem, fan, en] of list) {
+    const on = en !== "0";
+    const card = el("article", "gpu" + (on ? "" : " off"));
     const head = el("div", "gpu-head");
     const title = el("div", "gpu-name");
     title.append(el("span", "", `#${i}`), el("b", "full", name),
@@ -456,7 +457,11 @@ async function gpus() {
     const b = button("OC", () => openOc(i, name), "iconbtn");
     b.insertAdjacentHTML("afterbegin", OC_ICON);
     b.setAttribute("aria-label", `Overclock GPU ${i}`);
-    head.append(title, b);
+    const sw = button(on ? "Attiva" : "Disattivata", () => toggleGpu(i, !on), "gputoggle" + (on ? " on" : ""));
+    sw.setAttribute("aria-pressed", String(on));
+    const tools = el("div", "gpu-tools");
+    tools.append(sw, b);
+    head.append(title, tools);
     const temp = Number(t);
     const stats = el("div", "stats");
     for (const [k, v, cls, pct] of [
@@ -480,6 +485,13 @@ async function gpus() {
     box.append(card);
   }
   $("gpuSection").hidden = list.length === 0;
+}
+
+async function toggleGpu(i, enable) {
+  const msgText = enable ? `Riattivare la GPU ${i}? Il miner verrà riavviato.` : `Disattivare la GPU ${i}? Il miner verrà riavviato senza questa scheda.`;
+  if (!await ask(msgText, { ok: enable ? "Riattiva" : "Disattiva", danger: !enable })) return;
+  try { await api("PUT", `gpus/${i}`, { enabled: enable }); } catch (e) { showError(e); }
+  gpus();
 }
 
 async function openOc(i, name) {

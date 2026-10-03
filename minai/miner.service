@@ -9,7 +9,7 @@ ConditionPathExists=!/opt/miners/stopped
 [Service]
 # script crea un terminale virtuale: il miner scrive subito ogni riga invece di accumularle
 Environment=TERM=xterm
-ExecStart=/usr/bin/script -qfec "/bin/bash /opt/miners/active.sh" /dev/null
+ExecStart=/usr/bin/script -qfec "/bin/bash /opt/miners/run-launch.sh" /dev/null
 Restart=always
 RestartSec=10
 

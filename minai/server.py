@@ -30,7 +30,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "0.9.14"
+VERSION = "0.9.16"
 ROOT = os.environ.get("MINERS_ROOT", "/opt/miners")
 CONF = f"{ROOT}/panel.json"
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
@@ -749,7 +749,41 @@ def api_gpus(_):
                    "--format=csv,noheader,nounits"], timeout=15)
     except ApiError:
         return {"gpus": []}
-    return {"gpus": [[c.strip() for c in l.split(",")] for l in out.strip().splitlines() if l.strip()]}
+    off = gpus_disabled()
+    rows = [[c.strip() for c in l.split(",")] for l in out.strip().splitlines() if l.strip()]
+    for r in rows:  # ultimo campo: "1" GPU attiva, "0" disattivata dal pannello
+        r.append("0" if r and r[0].isdigit() and int(r[0]) in off else "1")
+    return {"gpus": rows}
+
+
+GPUS_FILE = f"{ROOT}/gpus.json"
+
+
+def gpus_disabled():
+    try:
+        with open(GPUS_FILE) as f:
+            return {int(i) for i in json.load(f).get("disabled", [])}
+    except (OSError, ValueError, TypeError):
+        return set()
+
+
+def api_gpu_enable(idx, body):
+    idx = int(idx)
+    present = [int(r[0]) for r in api_gpus(None)["gpus"] if r and r[0].isdigit()]
+    if idx not in present:
+        raise ApiError(404, "GPU non trovata")
+    off = gpus_disabled()
+    if body.get("enabled"):
+        off.discard(idx)
+    else:
+        off.add(idx)
+    if present and not set(present) - off:
+        raise ApiError(409, "Almeno una GPU deve restare attiva: per fermare il miner usa Ferma.")
+    with open(GPUS_FILE, "w") as f:
+        json.dump({"disabled": sorted(off)}, f)
+    if is_running():
+        run(["systemctl", "restart", SVC])  # il miner riparte con le GPU giuste
+    return {"disabled": sorted(off)}
 
 
 def read_oc():
@@ -932,6 +966,7 @@ ROUTES = [
     ("POST", r"stop", api_stop),
     ("GET", r"log", api_log),
     ("GET", r"gpus", api_gpus),
+    ("PUT", r"gpus/(\d+)", api_gpu_enable),
     ("GET", r"oc", api_oc_get),
     ("PUT", r"oc", api_oc_put),
     ("POST", r"power", api_power),
@@ -1107,7 +1142,7 @@ class Handler(BaseHTTPRequestHandler):
                             and managed() and not self.from_server:
                         raise ApiError(409, "Miner e lanci sono gestiti da minai-server: modificali da lì")
                     args = list(match.groups())
-                    if fn in (api_install, api_launch_put, api_oc_put, api_power, api_autofan_put, api_ts_up, api_rename):
+                    if fn in (api_install, api_launch_put, api_oc_put, api_power, api_autofan_put, api_ts_up, api_rename, api_gpu_enable):
                         args.append(self.body())
                     elif method == "GET" and not args:
                         args.append(parse_qs(url.query))

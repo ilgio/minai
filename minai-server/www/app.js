@@ -101,8 +101,9 @@ function rigCard(r) {
   }
   if (r.online) {
     const gl = el("div", "gpulist");
-    for (const [i, name, t, p, u, , , fan] of r.gpus || []) {
-      const g = el("div", "gpurow");
+    for (const [i, name, t, p, u, , , fan, en] of r.gpus || []) {
+      const g = el("div", "gpurow" + (en === "0" ? " off" : ""));
+      if (en === "0") g.title = "GPU disattivata";
       const temp = Number(t);
       g.append(el("span", "gname", `#${i} ${name.replace(/^NVIDIA GeForce /, "")}`),
                el("span", "gv " + (temp >= 80 ? "hot" : temp >= 70 ? "warm" : ""), `${t}°C`),

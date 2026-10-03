@@ -23,7 +23,7 @@ ATTENZIONE: installa Ubuntu e minai sul disco più grande del rig, CANCELLANDOLO
 
 4. Dal telefono o dal PC, nella stessa rete del rig, apri  http://minai-setup.local
    (se non si apre, usa l'indirizzo IP che trovi nel router o sul monitor del rig).
-   Scegli il nome del rig (per esempio backup3) e la password. Si apre da solo il
+   Scegli il nome del rig (per esempio rig-01) e la password. Si apre da solo il
    collegamento a Tailscale; poi in minai-server "Aggiungi rig" con indirizzo e token.
    Da quel momento il rig risponde in rete locale anche a http://nome-del-rig.local
 
