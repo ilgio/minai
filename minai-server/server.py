@@ -34,7 +34,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
-VERSION = "0.9.16"
+VERSION = "0.9.18"
 ROOT = os.environ.get("MINAI_SERVER_ROOT", "/opt/minai-server")
 CONF = f"{ROOT}/config.json"
 DB = f"{ROOT}/minai.db"
@@ -381,9 +381,16 @@ def deploy(rid, launch_name):
 
 
 def rigs_using(launch_name):
-    return [rid for rid, snap in SNAP.items()
-            if snap.get("online") and (snap.get("status") or {}).get("active") == f"{launch_name}.sh"
-            and (snap.get("status") or {}).get("running")]
+    """Rig con questo lancio attivo: in esecuzione o in errore, ma non fermati a mano."""
+    out = []
+    for rid, snap in SNAP.items():
+        st = snap.get("status") or {}
+        if not snap.get("online") or st.get("active") != f"{launch_name}.sh":
+            continue
+        stopped = st["stopped"] if "stopped" in st else not st.get("running")  # rig con minai < 0.9.18
+        if not stopped:
+            out.append(rid)
+    return out
 
 
 def api_catalog(_):
@@ -403,6 +410,8 @@ def api_miner_put(name, body):
     url = str(body.get("url", "")).strip()
     if not re.match(r"^https?://", url):
         raise ApiError(400, "Il link deve iniziare con http:// o https://")
+    if re.search(r"github\.com/[^/]+/[^/]+/?(?:$|releases/?$|releases/tag/|tree/|blob/)", url):
+        raise ApiError(400, "Questo è il link di una pagina: apri la release e copia il link del file (.tar.gz o .zip)")
     with DB_LOCK, db() as con:
         con.execute("INSERT INTO miners (name, url) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET url = excluded.url", (name, url))
     with UPD_LOCK:
@@ -414,7 +423,9 @@ def api_miner_delete(name):
     with DB_LOCK, db() as con:
         used = con.execute("SELECT name FROM launches WHERE miner = ?", (name,)).fetchall()
         if used:
-            raise ApiError(409, f"Il miner è usato dai lanci: {', '.join(r[0] for r in used)}")
+            names = ", ".join(r[0] for r in used)
+            raise ApiError(409, f"Il miner è indicato nel campo Miner dei lanci del catalogo: {names}. "
+                                "Elimina quei lanci o cambia il loro miner, poi riprova.")
         con.execute("DELETE FROM miners WHERE name = ?", (name,))
     return {"ok": True}
 
@@ -430,6 +441,9 @@ def api_launch_put(name, body):
                        ON CONFLICT(name) DO UPDATE SET miner = excluded.miner, content = excluded.content,
                        updated = excluded.updated""", (name, miner, content, int(time.time())))
     targets = rigs_using(name) if body.get("redeploy") else []
+    for x in body.get("also") or []:  # il rig dal cui pannello si sta modificando il lancio
+        if str(x).isdigit() and int(x) not in targets:
+            targets.append(int(x))
     for rid in targets:
         threading.Thread(target=deploy, args=(rid, name), daemon=True).start()
     return {"ok": True, "redeployed": len(targets)}
@@ -449,8 +463,9 @@ def api_deploy(body):
     if not ids:
         raise ApiError(400, "Scegli almeno un rig")
     for rid in ids:
-        if DEPLOY.get(rid, {}).get("state") == "running":
-            continue
+        d = DEPLOY.get(rid, {})
+        if d.get("state") == "running" and time.time() - d.get("time", 0) < 1900:
+            continue  # già in corso (oltre mezz'ora si considera bloccato e si riparte)
         threading.Thread(target=deploy, args=(rid, name), daemon=True).start()
     return {"started": len(ids)}
 

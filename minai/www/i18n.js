@@ -23,7 +23,16 @@ const EN = {
   // generale
   "Caricamento…": "Loading…", "Entra": "Log in", "Password": "Password", "Ripeti la password": "Repeat the password",
   "Salva e entra": "Save and log in", "Esci": "Log out", "Impostazioni": "Settings", "Menu": "Menu", "Sezioni": "Sections",
-  "Salva": "Save", "Annulla": "Cancel", "Attiva": "Enabled", "Disattivata": "Disabled", "Riattiva": "Enable", "Disattiva": "Disable",
+  "Salva": "Save", "Annulla": "Cancel", "Modifica lancio": "Edit launch", "Salva per tutti i rig": "Save for all rigs",
+  "Salva solo per questo rig": "Save for this rig only", "Salva per tutti": "Save for all", "Salvo…": "Saving…",
+  "In errore, riprovo…": "Failing, retrying…",
+  "Salvato per tutti i rig che lo usano: il miner riparte, guarda il log qui sotto.": "Saved for all rigs using it: the miner restarts, watch the log below.",
+  "Salvato: il miner riparte, guarda il log qui sotto.": "Saved: the miner restarts, watch the log below.",
+  "Questo lancio non è nel catalogo di minai-server.": "This launch is not in the minai-server catalog.",
+  "Il link porta a una pagina web, non al file del miner: apri la release e copia il link del file (.tar.gz o .zip)":
+    "The link points to a web page, not to the miner file: open the release and copy the file link (.tar.gz or .zip)",
+  "Questo è il link di una pagina: apri la release e copia il link del file (.tar.gz o .zip)":
+    "This is a page link: open the release and copy the file link (.tar.gz or .zip)", "Attiva": "Enabled", "Disattivata": "Disabled", "Riattiva": "Enable", "Disattiva": "Disable",
   "GPU disattivata": "GPU disabled", "GPU non trovata": "GPU not found",
   "Almeno una GPU deve restare attiva: per fermare il miner usa Ferma.": "At least one GPU must stay enabled: to stop the miner use Stop.",
   "%GPU_ENABLED% diventa l'elenco delle GPU attive del rig, per esempio 0,1: usalo nei miner che vogliono l'elenco delle GPU. Le GPU si attivano e disattivano dal pannello di ogni rig.":
@@ -293,6 +302,15 @@ const EN_RX = [
   [/^  (.+): ok$/, (m, l) => `  ${trLabel(l)}: ok`],
   [/^  (.+): ERRORE (.+)$/, (m, l, e) => `  ${trLabel(l)}: ERROR ${e}`],
   [/^Errore (\d+)$/, "Error $1"],
+  [/^Il comando usa la cartella del miner (.+), ma nel campo Miner hai scelto (.+): sui rig verrebbe installato (.+)\. Vuoi usare (.+)\?$/,
+   "The command uses the folder of miner $1, but the Miner field says $2: rigs would install $3. Use $4?"],
+  [/^Usa (.+)$/, "Use $1"], [/^Tieni (.+)$/, "Keep $1"],
+  [/^Il miner è indicato nel campo Miner dei lanci del catalogo: (.+)\. Elimina quei lanci o cambia il loro miner, poi riprova\.$/,
+   "This miner is set in the Miner field of these catalog launches: $1. Delete those launches or change their miner, then try again."],
+  [/^Lancio «(.+)», copia dedicata a questo rig\.$/, "Launch «$1», a copy dedicated to this rig."],
+  [/^Lancio «(.+)» del catalogo, usato su (\d+) rig\.$/, "Launch «$1» from the catalog, used on $2 rig(s)."],
+  [/^Lancio «(.+)» di questo rig\.$/, "Launch «$1» of this rig."],
+  [/^Salvare il lancio «(.+)» per tutti i rig che lo usano\? Ripartiranno con la nuova versione\.$/, "Save launch «$1» for all rigs using it? They will restart with the new version."],
   [/^Riattivare la GPU (\d+)\? Il miner verrà riavviato\.$/, "Enable GPU $1 again? The miner will restart."],
   [/^Disattivare la GPU (\d+)\? Il miner verrà riavviato senza questa scheda\.$/, "Disable GPU $1? The miner will restart without this card."],
   // "lancio: passo…" e "lancio: errore" sulla scheda del rig

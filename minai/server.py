@@ -30,7 +30,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "0.9.16"
+VERSION = "0.9.18"
 ROOT = os.environ.get("MINERS_ROOT", "/opt/miners")
 CONF = f"{ROOT}/panel.json"
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
@@ -42,6 +42,8 @@ AUTOFAN_STATUS = os.environ.get("MINERS_AUTOFAN_STATUS", "/run/miner-autofan.jso
 AUTOFAN_DEFAULTS = {"enabled": False, "target": 70, "min": 30, "max": 100, "critical": 90, "action": "stop"}
 OC_CMD = [f"{ROOT}/venv/bin/python3", f"{ROOT}/oc.py", "--now"]
 SVC = "miner.service"
+PAGE_RE = re.compile(r"github\.com/[^/]+/[^/]+/?(?:$|releases/?$|releases/tag/|tree/|blob/)")
+PAGE_MSG = "Questo è il link di una pagina: apri la release e copia il link del file (.tar.gz o .zip)"
 MINER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 LAUNCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.sh$")
 SESSION_SECONDS = 30 * 24 * 3600
@@ -52,6 +54,10 @@ name="$1"; url="$2"; bin="$3"; owner="$4"; dest="$bin/$name"
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 cd "$tmp"
 curl -fsSL --retry 3 -o pkg "$url"
+if head -c 1024 pkg | grep -qi -e '<!doctype html' -e '<html'; then
+  echo "Il link porta a una pagina web, non al file del miner: apri la release e copia il link del file (.tar.gz o .zip)" >&2
+  exit 1
+fi
 mkdir x
 case "${url%%\?*}" in
   *.zip) unzip -q pkg -d x ;;
@@ -62,8 +68,19 @@ case "${url%%\?*}" in
 esac
 src=x
 if [ "$(ls -A x | wc -l)" -eq 1 ] && [ -d "x/$(ls -A x)" ]; then src="x/$(ls -A x)"; fi
-rm -rf "$dest"; mkdir -p "$dest"
-cp -a "$src"/. "$dest"/
+# aggiornamento: si sostituiscono solo i file del pacchetto; modelli e dati creati dopo restano
+mkdir -p "$dest"
+(cd "$src" && find . -type d) | while IFS= read -r d; do mkdir -p "$dest/$d"; done
+(cd "$src" && find . ! -type d) > "$tmp/files"
+if [ -f "$dest/.files" ]; then
+  # i file della versione precedente che non esistono più nel pacchetto nuovo
+  grep -vxF -f "$tmp/files" "$dest/.files" | while IFS= read -r f; do rm -f -- "$dest/$f"; done
+fi
+while IFS= read -r f; do
+  # copia accanto e rinomina: funziona anche se il miner è in esecuzione
+  cp -a -- "$src/$f" "$dest/$f.minai-new" && mv -f -- "$dest/$f.minai-new" "$dest/$f"
+done < "$tmp/files"
+cp "$tmp/files" "$dest/.files"
 echo "$url" > "$dest/.source"
 find "$dest" -maxdepth 1 -type f ! -name '*.*' -exec chmod +x {} +
 chmod +x "$dest"/*.sh 2>/dev/null || true
@@ -265,6 +282,20 @@ def run(args, timeout=30):
     if r.returncode:
         raise ApiError(500, (r.stderr or r.stdout).strip() or f"{args[0]} ha restituito {r.returncode}")
     return r.stdout
+
+
+def miner_state():
+    """running: sta minando; failing: si ferma e riprova da solo; stopped: fermo."""
+    try:
+        r = subprocess.run(["systemctl", "is-active", SVC], capture_output=True, text=True, timeout=10)
+        st = r.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return "stopped"
+    if st == "active":
+        return "running"
+    if active_launch() and not os.path.exists(STOPPED) and st in ("activating", "failed", "deactivating"):
+        return "failing"
+    return "stopped"
 
 
 def is_running():
@@ -548,7 +579,9 @@ def nvidia_driver():
     return DRIVER["version"]
 
 
-SPEED_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([kKMGTPE]?(?:H|Sol|N)/s)\b")
+# qualsiasi unità prima di "/s" (H/s, kH/s, Sol/s, N/s, FW/s…), ma non le velocità di download
+SPEED_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([A-Za-z]{1,6}/s)(?![A-Za-z])")
+NOT_SPEED = re.compile(r"^(?:[kKMGTP]i?)?(?:B|b|bit|bps)/s$|^it/s$")
 SPEED_KEY = re.compile(r"total|hashrate|speed", re.I)
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 SPEED = {"value": None, "unit": None, "key": False}
@@ -556,7 +589,7 @@ SPEED = {"value": None, "unit": None, "key": False}
 
 def parse_speed(line):
     line = ANSI_RE.sub("", line)
-    found = SPEED_RE.findall(line)
+    found = [f for f in SPEED_RE.findall(line) if not NOT_SPEED.match(f[1])]
     if not found:
         return
     is_key = bool(SPEED_KEY.search(line))
@@ -579,7 +612,9 @@ def speed_follower():
 
 def api_status(_):
     fan = {**AUTOFAN_DEFAULTS, **read_json(AUTOFAN_FILE, {})}
-    return {"running": is_running(), "active": active_launch(), "bin": BIN,
+    state = miner_state()
+    return {"running": state == "running", "state": state, "stopped": os.path.exists(STOPPED),
+            "active": active_launch(), "bin": BIN,
             "host": socket.gethostname(), "sys": dict(SYS),
             "version": VERSION, "driver": nvidia_driver(),
             "speed": {"value": SPEED["value"], "unit": SPEED["unit"]} if SPEED["value"] else None,
@@ -614,6 +649,8 @@ def api_install(body):
     check_miner(name)
     if not re.match(r"^https?://", url):
         raise ApiError(400, "Il link deve iniziare con http:// o https://")
+    if PAGE_RE.search(url):
+        raise ApiError(400, PAGE_MSG)
     with JOB_LOCK:
         if JOB and JOB["state"] == "running":
             raise ApiError(409, f"Installazione di {JOB['name']} già in corso")
@@ -670,8 +707,8 @@ def api_launch_put(name, body):
     with open(path, "w") as f:
         f.write(str(body.get("content", "")))
     os.chmod(path, 0o755)
-    if name == active_launch() and is_running():
-        run(["systemctl", "restart", SVC])
+    if name == active_launch() and not os.path.exists(STOPPED):
+        run(["systemctl", "restart", SVC])  # riparte subito, anche se stava fallendo
     return {"ok": True}
 
 

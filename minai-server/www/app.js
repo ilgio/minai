@@ -59,7 +59,9 @@ function rigCard(r) {
   if (r.error) card.title = r.error;
 
   const head = el("div", "righead");
-  const dot = el("span", "dot " + (!r.online ? "gone" : running ? "on" : "off"));
+  const rs = (st && st.state) || (running ? "running" : "stopped");
+  const dot = el("span", "dot " + (!r.online ? "gone" : rs === "running" ? "on" : rs === "failing" ? "fail" : "off"));
+  if (r.online && rs === "failing") dot.title = "In errore, riprovo…";
   const title = el("div", "rigtitle");
   title.append(el("strong", "", r.name));
   title.append(el("span", "muted", !r.online ? (r.error && r.error.includes("token") ? "token non valido" : "offline") : running ? (st.active || "").replace(/\.sh$/, "") : "fermo"));
@@ -328,7 +330,9 @@ async function refreshCatalog() {
     ], badges);
   }));
   $("noLaunches").hidden = cat.launches.length > 0;
-  $("launchMiner").replaceChildren(...cat.miners.map(m => new Option(m.name, m.name)));
+  const sel = $("launchMiner"), chosen = sel.value;
+  sel.replaceChildren(...cat.miners.map(m => new Option(m.name, m.name)));
+  if (chosen && cat.miners.some(m => m.name === chosen)) sel.value = chosen;  // conserva la scelta
 }
 
 function openMiner(m) {
@@ -380,8 +384,19 @@ function openLaunch(l) {
   $("launchRedeploy").parentElement.hidden = !(l && l.rigs.length);
   (l ? $("launchContent") : $("launchName")).focus();
 }
+// il miner indicato dalla riga "cd /home/user/miners/NOME" del comando
+function minerFromContent(text) {
+  const m = text.match(/\/home\/user\/miners\/([A-Za-z0-9._-]+)/);
+  return m && cat.miners.some(x => x.name === m[1]) ? m[1] : null;
+}
 async function saveLaunch() {
   const name = $("launchName").value.trim().replace(/\.sh$/, "");
+  const fromCd = minerFromContent($("launchContent").value), chosen = $("launchMiner").value;
+  if (fromCd && fromCd !== chosen) {
+    const useCd = await ask(`Il comando usa la cartella del miner ${fromCd}, ma nel campo Miner hai scelto ${chosen}: sui rig verrebbe installato ${chosen}. Vuoi usare ${fromCd}?`,
+                            { ok: `Usa ${fromCd}`, cancel: `Tieni ${chosen}` });
+    if (useCd) $("launchMiner").value = fromCd;
+  }
   try {
     const d = await api("PUT", `catalog/launches/${encodeURIComponent(name)}`, {
       miner: $("launchMiner").value, content: $("launchContent").value, redeploy: $("launchRedeploy").checked,
@@ -552,6 +567,10 @@ $("btnMinerCancel").addEventListener("click", () => { $("minerForm").hidden = tr
 $("btnCheck").addEventListener("click", () => api("POST", "catalog/check").then(refreshCatalog).catch(e => msg("error", e.message)));
 $("btnNewLaunch").addEventListener("click", () => openLaunch(null));
 $("launchMiner").addEventListener("change", () => { if (!editingLaunch) $("launchContent").value = LAUNCH_TEMPLATE($("launchMiner").value); });
+$("launchContent").addEventListener("input", () => {
+  const m = minerFromContent($("launchContent").value);
+  if (m) $("launchMiner").value = m;  // scrivendo "cd …/miners/NOME" il miner si sceglie da solo
+});
 $("btnLaunchSave").addEventListener("click", saveLaunch);
 $("btnLaunchCancel").addEventListener("click", () => { $("launchForm").hidden = true; });
 $("btnDeployGo").addEventListener("click", goDeploy);

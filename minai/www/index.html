@@ -110,7 +110,21 @@
         <div id="gpus" class="gpus"></div>
       </section>
       <section>
-        <h2>Log</h2>
+        <div class="head loghead">
+          <h2>Log</h2>
+          <button id="btnEditActive" hidden>Modifica lancio</button>
+        </div>
+        <div id="liveEditor" class="form card" hidden>
+          <p id="liveEdNote" class="muted small"></p>
+          <textarea id="liveEdText" rows="11" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+          <div class="actions">
+            <button id="btnLiveAll" class="primary">Salva per tutti i rig</button>
+            <button id="btnLiveOne">Salva solo per questo rig</button>
+            <button id="btnLiveSave" class="primary">Salva</button>
+            <button id="btnLiveClose">Chiudi</button>
+          </div>
+          <p id="liveEdMsg" class="small liveedmsg" hidden></p>
+        </div>
         <pre id="log"></pre>
       </section>
     </div>

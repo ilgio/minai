@@ -10,6 +10,7 @@ const VIA_SERVER = /\/rig\/[^/]+\//.test(location.pathname);
 const SERVER_HOME = location.pathname.replace(/\/rig\/[^/]+\/.*$/, "/");
 const enc = encodeURIComponent;
 let active = null, running = false, editing = null, miners = [], binDir = "", launchMiners = {};
+let minerState = "stopped";
 let oc = {}, ocGpu = null, installPoll = null, checkPoll = null, started = false, managed = false;
 
 /* ---------- richieste al server ---------- */
@@ -128,10 +129,13 @@ async function refreshStatus() {
   $("btnFan").classList.toggle("on", !!af.enabled);
   $("fanLabel").textContent = af.enabled ? `${af.target}°` : "";
   $("btnFan").title = (af.enabled ? `Autofan attivo, obiettivo ${af.target}°C` : "Autofan spento") + (af.event ? `\nUltimo intervento: ${af.event}` : "");
-  $("dot").className = "dot " + (running ? "on" : "off");
-  $("state").textContent = running ? "In esecuzione" : "Fermo";
+  const st = s.state || (running ? "running" : "stopped");
+  $("dot").className = "dot " + (st === "running" ? "on" : st === "failing" ? "fail" : "off");
+  $("state").textContent = st === "running" ? "In esecuzione" : st === "failing" ? "In errore, riprovo…" : "Fermo";
+  minerState = st;
+  $("btnEditActive").hidden = !active || (managed && !VIA_SERVER);
   $("activeName").textContent = active ? active.replace(/\.sh$/, "") : "nessun lancio attivo";
-  $("btnStop").disabled = !running;
+  $("btnStop").disabled = st === "stopped";
   $("speed").hidden = !running || !$("speed").textContent;
   showSys(s.sys || {});
 }
@@ -440,6 +444,7 @@ async function pollLog() {
 }
 
 /* ---------- GPU e overclock ---------- */
+const gpuOpen = new Set((() => { try { return JSON.parse(localStorage.getItem("gpu-open") || "[]"); } catch { return []; } })());
 async function gpus() {
   let list = [];
   try { list = (await api("GET", "gpus")).gpus; } catch { return; }
@@ -448,12 +453,33 @@ async function gpus() {
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   for (const [i, name, t, p, u, sm, mem, fan, en] of list) {
     const on = en !== "0";
-    const card = el("article", "gpu" + (on ? "" : " off"));
-    const head = el("div", "gpu-head");
+    const open = gpuOpen.has(i);
+    const temp = Number(t);
+    const card = el("article", "gpu" + (on ? "" : " off") + (open ? " open" : ""));
+    // riga compatta: si tocca per aprire i dettagli
+    const head = el("button", "gpu-head");
+    head.setAttribute("aria-expanded", String(open));
     const title = el("div", "gpu-name");
     title.append(el("span", "", `#${i}`), el("b", "full", name),
                  el("b", "short", name.replace(/^NVIDIA (GeForce )?/, "")));
     title.title = name;
+    const sum = el("span", "gpu-sum");
+    if (on) {
+      sum.append(el("span", temp >= 80 ? "hot" : temp >= 70 ? "warm" : "", `${t}°C`),
+                 el("span", "", `${Math.round(p)} W`), el("span", "", `${fan}%`));
+    } else {
+      sum.append(el("span", "", "Disattivata"));
+    }
+    const chev = el("span", "chev");
+    chev.innerHTML = '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>';
+    head.append(title, sum, chev);
+    head.addEventListener("click", () => {
+      if (gpuOpen.has(i)) gpuOpen.delete(i); else gpuOpen.add(i);
+      try { localStorage.setItem("gpu-open", JSON.stringify([...gpuOpen])); } catch {}
+      card.classList.toggle("open"); head.setAttribute("aria-expanded", String(gpuOpen.has(i)));
+    });
+    // dettagli
+    const body = el("div", "gpu-body");
     const b = button("OC", () => openOc(i, name), "iconbtn");
     b.insertAdjacentHTML("afterbegin", OC_ICON);
     b.setAttribute("aria-label", `Overclock GPU ${i}`);
@@ -461,8 +487,6 @@ async function gpus() {
     sw.setAttribute("aria-pressed", String(on));
     const tools = el("div", "gpu-tools");
     tools.append(sw, b);
-    head.append(title, tools);
-    const temp = Number(t);
     const stats = el("div", "stats");
     for (const [k, v, cls, pct] of [
       ["Temp", `${t}°C`, temp >= 80 ? "hot" : temp >= 70 ? "warm" : ""],
@@ -481,7 +505,8 @@ async function gpus() {
       }
       stats.append(st);
     }
-    card.append(head, stats);
+    body.append(tools, stats);
+    card.append(head, body);
     box.append(card);
   }
   $("gpuSection").hidden = list.length === 0;
@@ -788,6 +813,77 @@ $("btnSelfCheck").addEventListener("click", async () => {
   // nessun messaggio: se c'è una nuova versione compare il badge arancione accanto al logo
   try { await api("POST", "selfcheck"); await refreshStatus(); } catch (e) { showError(e); }
 });
+
+/* ---------- modifica del lancio attivo, con il log sotto gli occhi ---------- */
+let liveEd = null;   // {mode: "local" | "catalog", name, miner, rigId, rigName, copy}
+async function srvApi(method, path, body) {
+  const opts = { method, credentials: "same-origin", headers: {} };
+  if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  const res = await fetch(`${SERVER_HOME}api/${path}`, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Errore ${res.status}`);
+  return data;
+}
+function liveMsg(text, err) {
+  const m = $("liveEdMsg");
+  m.hidden = !text; m.textContent = text || ""; m.classList.toggle("error", !!err);
+}
+async function openLiveEditor() {
+  liveMsg("");
+  const name = active.replace(/\.sh$/, "");
+  try {
+    if (managed && VIA_SERVER) {
+      const rigId = Number(location.pathname.match(/\/rig\/(\d+)\//)[1]);
+      const [cat, rigs] = await Promise.all([srvApi("GET", "catalog"), srvApi("GET", "rigs")]);
+      const rig = rigs.rigs.find(r => r.id === rigId) || {};
+      const l = cat.launches.find(x => x.name === name);
+      if (!l) throw new Error("Questo lancio non è nel catalogo di minai-server.");
+      const rigName = String(rig.name || "rig").replace(/[^A-Za-z0-9._-]/g, "-");
+      const copy = name.endsWith(`-${rigName}`) && cat.launches.some(x => x.name === name.slice(0, -rigName.length - 1));
+      liveEd = { mode: "catalog", name, miner: l.miner, rigId, rigName, copy };
+      $("liveEdText").value = l.content;
+      $("liveEdNote").textContent = copy
+        ? `Lancio «${name}», copia dedicata a questo rig.`
+        : `Lancio «${name}» del catalogo, usato su ${l.rigs.length || 1} rig.`;
+    } else {
+      const d = await api("GET", `launches/${encodeURIComponent(active)}`);
+      liveEd = { mode: "local", name };
+      $("liveEdText").value = d.content;
+      $("liveEdNote").textContent = `Lancio «${name}» di questo rig.`;
+    }
+  } catch (e) { showError(e); return; }
+  const cat = liveEd.mode === "catalog" && !liveEd.copy;
+  $("btnLiveAll").hidden = !cat; $("btnLiveOne").hidden = !cat; $("btnLiveSave").hidden = cat;
+  $("liveEditor").hidden = false;
+  $("liveEdText").focus();
+}
+async function saveLive(scope) {
+  const content = $("liveEdText").value;
+  liveMsg("Salvo…");
+  try {
+    if (liveEd.mode === "local") {
+      await api("PUT", `launches/${encodeURIComponent(active)}`, { content });
+      if (minerState === "stopped") await api("POST", `launches/${encodeURIComponent(active)}/start`);
+    } else if (scope === "one" && !liveEd.copy) {
+      // copia dedicata a questo rig, che parte qui; gli altri rig restano come sono
+      const copyName = `${liveEd.name}-${liveEd.rigName}`;
+      await srvApi("PUT", `catalog/launches/${encodeURIComponent(copyName)}`, { miner: liveEd.miner, content, redeploy: true, also: [liveEd.rigId] });
+      liveEd = { ...liveEd, name: copyName, copy: true };
+      $("liveEdNote").textContent = `Lancio «${copyName}», copia dedicata a questo rig.`;
+      $("btnLiveAll").hidden = true; $("btnLiveOne").hidden = true; $("btnLiveSave").hidden = false;
+    } else {
+      await srvApi("PUT", `catalog/launches/${encodeURIComponent(liveEd.name)}`, { miner: liveEd.miner, content, redeploy: true, also: [liveEd.rigId] });
+    }
+    liveMsg(scope === "all" ? "Salvato per tutti i rig che lo usano: il miner riparte, guarda il log qui sotto." : "Salvato: il miner riparte, guarda il log qui sotto.");
+  } catch (e) { liveMsg(e.message, true); }
+}
+$("btnEditActive").addEventListener("click", openLiveEditor);
+$("btnLiveAll").addEventListener("click", async () => {
+  if (await ask(`Salvare il lancio «${liveEd.name}» per tutti i rig che lo usano? Ripartiranno con la nuova versione.`, { ok: "Salva per tutti" })) saveLive("all");
+});
+$("btnLiveOne").addEventListener("click", () => saveLive("one"));
+$("btnLiveSave").addEventListener("click", () => saveLive("this"));
+$("btnLiveClose").addEventListener("click", () => { $("liveEditor").hidden = true; });
 
 /* ---------- menu in alto a destra ---------- */
 function setMenu(open) {
