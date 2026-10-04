@@ -64,6 +64,7 @@ function rigCard(r) {
   if (r.online && rs === "failing") dot.title = "In errore, riprovo…";
   const title = el("div", "rigtitle");
   title.append(el("strong", "", r.name));
+  if (st.test) title.append(el("span", "testtag", "Lancio di prova"));
   title.append(el("span", "muted", !r.online ? (r.error && r.error.includes("token") ? "token non valido" : "offline") : running ? (st.active || "").replace(/\.sh$/, "") : "fermo"));
   const more = el("button", "iconbtn more");
   more.setAttribute("aria-label", `Impostazioni di ${r.name}`);
@@ -96,6 +97,11 @@ function rigCard(r) {
     const w = el("button", "expirywarn", `Tailscale: scade il ${fmtDate(r.ts_expiry)} · come evitarlo`);
     w.addEventListener("click", ev => { ev.preventDefault(); ev.stopPropagation(); openExpiry(); });
     card.append(w);
+  }
+  const sy = r.sync;
+  if (r.online && sy && sy.state !== "ok") {
+    card.append(el("div", "syncnote" + (sy.state === "error" ? " err" : ""),
+      sy.state === "error" ? `Non allineato: ${sy.msg}` : sy.state === "running" ? `Allineamento: ${sy.msg || "Allineo"}` : "Da allineare"));
   }
   const dep = r.deploy;
   if (dep && (dep.state !== "ok" || Date.now() / 1000 - dep.time < 120)) {
@@ -338,18 +344,20 @@ async function refreshCatalog() {
 function openMiner(m) {
   editingMiner = m || null;
   $("minerForm").hidden = false;
-  $("minerName").value = m ? m.name : ""; $("minerName").disabled = !!m;
+  $("minerName").value = m ? m.name : ""; $("minerName").disabled = false;
   $("minerUrl").value = m ? m.url : "";
   (m ? $("minerUrl") : $("minerName")).focus();
 }
 async function saveMiner() {
   const name = $("minerName").value.trim();
   try {
+    if (editingMiner && name !== editingMiner.name) {
+      if (!await ask(`Rinominare il miner ${editingMiner.name} in ${name}? Sui rig la cartella viene rinominata (dati compresi) e i lanci che lo usano vengono aggiornati.`, { ok: "Rinomina" })) return;
+      await api("POST", `catalog/miners/${encodeURIComponent(editingMiner.name)}/rename`, { name });
+    }
+    // lo specchio installa o aggiorna il miner su tutti i rig, e riavvia dove sta girando
     await api("PUT", `catalog/miners/${encodeURIComponent(name)}`, { url: $("minerUrl").value.trim() });
     $("minerForm").hidden = true; msg("error", "");
-    const used = cat.launches.filter(l => l.miner === name && l.rigs.length);
-    if (editingMiner && used.length && await ask("Vuoi installare la nuova versione anche sui rig che la stanno usando? Il miner verrà riavviato.", { ok: "Aggiorna i rig", cancel: "No" }))
-      for (const l of used) await api("POST", "deploy", { launch: l.name, rigs: l.rigs });
     refreshAll();
   } catch (e) { msg("error", e.message); }
 }
@@ -359,7 +367,7 @@ async function updateMiner(m) {
   await saveMiner();
 }
 async function deleteMiner(m) {
-  if (!await ask(`Togliere ${m.name} dal catalogo? Sui rig resta installato.`, { ok: "Togli", danger: true })) return;
+  if (!await ask(`Eliminare il miner ${m.name}? Viene tolto da tutti i rig, insieme alla sua cartella e ai dati che contiene (per esempio modelli scaricati).`, { ok: "Elimina", danger: true })) return;
   try { await api("DELETE", `catalog/miners/${encodeURIComponent(m.name)}`); refreshCatalog(); } catch (e) { msg("error", e.message); }
 }
 
@@ -381,7 +389,7 @@ function openLaunch(l) {
   $("launchName").value = l ? l.name : ""; $("launchName").disabled = !!l;
   $("launchMiner").value = l ? l.miner : cat.miners[0].name;
   $("launchContent").value = l ? l.content : LAUNCH_TEMPLATE($("launchMiner").value);
-  $("launchRedeploy").parentElement.hidden = !(l && l.rigs.length);
+  $("launchRedeploy").parentElement.hidden = true;  // ora lo specchio aggiorna sempre i rig
   (l ? $("launchContent") : $("launchName")).focus();
 }
 // il miner indicato dalla riga "cd /home/user/miners/NOME" del comando
@@ -399,7 +407,7 @@ async function saveLaunch() {
   }
   try {
     const d = await api("PUT", `catalog/launches/${encodeURIComponent(name)}`, {
-      miner: $("launchMiner").value, content: $("launchContent").value, redeploy: $("launchRedeploy").checked,
+      miner: $("launchMiner").value, content: $("launchContent").value,
     });
     $("launchForm").hidden = true; msg("error", "");
     refreshAll();
@@ -407,7 +415,11 @@ async function saveLaunch() {
   } catch (e) { msg("error", e.message); }
 }
 async function deleteLaunch(l) {
-  if (!await ask(`Eliminare il lancio ${l.name} dal catalogo? I rig che lo usano continuano a minare.`, { ok: "Elimina", danger: true })) return;
+  const users = l.rigs.map(id => (rigs.find(r => r.id === id) || {}).name).filter(Boolean);
+  const q = users.length
+    ? `Eliminare il lancio ${l.name}? È in uso su ${users.join(", ")}: verrà fermato su quei rig. Il lancio viene tolto da tutti i rig.`
+    : `Eliminare il lancio ${l.name}? Viene tolto da tutti i rig.`;
+  if (!await ask(q, { ok: "Elimina", danger: true })) return;
   try { await api("DELETE", `catalog/launches/${encodeURIComponent(l.name)}`); refreshCatalog(); } catch (e) { msg("error", e.message); }
 }
 

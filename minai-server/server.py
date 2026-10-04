@@ -34,7 +34,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
-VERSION = "0.9.18"
+VERSION = "0.9.19"
 ROOT = os.environ.get("MINAI_SERVER_ROOT", "/opt/minai-server")
 CONF = f"{ROOT}/config.json"
 DB = f"{ROOT}/minai.db"
@@ -143,6 +143,7 @@ with DB_LOCK, db() as _con:
     _con.execute("""CREATE TABLE IF NOT EXISTS miners (
         name TEXT PRIMARY KEY,
         url TEXT NOT NULL)""")
+    _con.execute("""CREATE TABLE IF NOT EXISTS renames (old TEXT NOT NULL, new TEXT NOT NULL)""")
     _con.execute("""CREATE TABLE IF NOT EXISTS launches (
         name TEXT PRIMARY KEY,
         miner TEXT NOT NULL,
@@ -235,7 +236,11 @@ def poll_loop():
 
 def public_rig(rig):
     snap = SNAP.get(rig["id"], {})
-    return {"id": rig["id"], "name": rig["name"], "address": rig["address"], **snap, "deploy": DEPLOY.get(rig["id"])}
+    sy = SYNC.get(rig["id"])
+    if sy and sy.get("state") == "ok" and sy.get("hash") != catalog_hash():
+        sy = {**sy, "state": "pending"}
+    return {"id": rig["id"], "name": rig["name"], "address": rig["address"], **snap, "deploy": DEPLOY.get(rig["id"]),
+            "sync": sy}
 
 
 def api_rigs(_):
@@ -340,38 +345,146 @@ def render(content, rig, bin_dir, miner):
     return content.replace("%MINER_DIR%", f"{bin_dir}/{miner}").replace("%HOME%", os.path.dirname(bin_dir))
 
 
+# ---------- specchio: i rig hanno sempre esattamente miner e lanci del catalogo ----------
+
+SYNC = {}            # id del rig -> {"hash", "state": ok|running|error, "msg", "time"}
+SYNC_LOCKS = {}
+SYNC_EVENT = threading.Event()
+
+
+def catalog_rows():
+    with DB_LOCK, db() as con:
+        miners = [tuple(r) for r in con.execute("SELECT name, url FROM miners ORDER BY name")]
+        launches = [tuple(r) for r in con.execute("SELECT name, miner, content FROM launches ORDER BY name")]
+        renames = [tuple(r) for r in con.execute("SELECT old, new FROM renames ORDER BY rowid")]
+    return miners, launches, renames
+
+
+def catalog_hash(rows=None):
+    return hashlib.sha256(json.dumps(rows or catalog_rows()).encode()).hexdigest()[:16]
+
+
+def catalog_changed():
+    SYNC_EVENT.set()
+
+
+def wait_install(rig, name):
+    deadline = time.time() + 1800
+    while True:
+        time.sleep(3)
+        job = agent_call(rig, "GET", "miners").get("job") or {}
+        if job.get("name") == name and job.get("state") != "running":
+            if job.get("state") == "error":
+                raise RuntimeError(f"installazione di {name} non riuscita: {job.get('output', '')[-200:]}")
+            return
+        if time.time() > deadline:
+            raise RuntimeError("installazione troppo lunga, controlla il rig")
+
+
+def sync_rig(rig, wait=False):
+    """Allinea il rig al catalogo: rinomine, miner, lanci; toglie quello che non c'è più."""
+    rid = rig["id"]
+    lock = SYNC_LOCKS.setdefault(rid, threading.Lock())
+    if not lock.acquire(blocking=wait):
+        return
+    def state(st, msg=""):
+        SYNC[rid] = {**SYNC.get(rid, {}), "state": st, "msg": msg, "time": int(time.time())}
+    try:
+        rows = catalog_rows()
+        h = catalog_hash(rows)
+        status = agent_call(rig, "GET", "status")
+        if status.get("test"):
+            return  # lancio di prova in corso: il rig non si tocca
+        if SYNC.get(rid, {}).get("hash") == h and SYNC[rid].get("state") == "ok" and not wait:
+            return
+        state("running", "Allineo")
+        miners, launches, renames = rows
+        cat_m = dict(miners)
+        cat_l = {n: {"miner": m, "content": c} for n, m, c in launches}
+        bin_dir, active, stopped = status["bin"], status.get("active"), status.get("stopped")
+        have = {m["name"]: m["source"] for m in agent_call(rig, "GET", "miners")["miners"]}
+        renamed_away = {old for old, _ in renames}
+        # 1. rinomine: la cartella cambia nome, modelli e dati restano
+        for old, new in renames:
+            if old in have and new not in have:
+                try:
+                    agent_call(rig, "POST", f"miners/{old}/rename", {"name": new})
+                    have[new] = have.pop(old)
+                except (urllib.error.HTTPError, RuntimeError):
+                    pass  # rig con minai vecchio: la cartella vecchia resta, non si cancella
+        # 2. miner nuovi o aggiornati
+        reinstalled = set()
+        for name, url in cat_m.items():
+            if have.get(name) != url:
+                state("running", f"Installo {name}")
+                agent_call(rig, "POST", "miners", {"name": name, "url": url})
+                wait_install(rig, name)
+                have[name] = url
+                reinstalled.add(name)
+        # 3. lanci nuovi o modificati (il rig riavvia da solo quello attivo)
+        rig_launches = {x["file"]: x for x in agent_call(rig, "GET", "launches")["launches"]}
+        for name, l in cat_l.items():
+            file = f"{name}.sh"
+            content = render(l["content"], rig, bin_dir, l["miner"])
+            current = None
+            if file in rig_launches:
+                try:
+                    current = agent_call(rig, "GET", f"launches/{file}").get("content")
+                except urllib.error.HTTPError:
+                    current = None
+            if current != content:
+                state("running", f"Scrivo {name}")
+                agent_call(rig, "PUT", f"launches/{file}", {"content": content})
+            elif l["miner"] in reinstalled and file == active and not stopped:
+                agent_call(rig, "POST", f"launches/{file}/start", {})  # nuova versione del miner
+        # 4. via quello che non è più nel catalogo (mai il lancio attivo e il suo miner)
+        active_miner = (cat_l.get(active[:-3]) or {}).get("miner") if active else None
+        if active and not active_miner:
+            active_miner = (rig_launches.get(active) or {}).get("miner")
+        for file in set(rig_launches) - {f"{n}.sh" for n in cat_l}:
+            if file != active:
+                agent_call(rig, "DELETE", f"launches/{file}")
+        for name in set(have) - set(cat_m):
+            if name != active_miner and name not in renamed_away:
+                state("running", f"Tolgo {name}")
+                agent_call(rig, "DELETE", f"miners/{name}")
+        SYNC[rid] = {"hash": h, "state": "ok", "msg": "", "time": int(time.time())}
+    except urllib.error.HTTPError as e:
+        state("error", "token del rig non valido" if e.code == 401 else f"errore {e.code}")
+    except (OSError, ValueError, RuntimeError, KeyError) as e:
+        state("error", str(e) or type(e).__name__)
+    finally:
+        lock.release()
+
+
+def sync_loop():
+    while True:
+        SYNC_EVENT.wait(20)
+        SYNC_EVENT.clear()
+        h = catalog_hash()
+        for rig in all_rigs():
+            snap = SNAP.get(rig["id"], {})
+            sy = SYNC.get(rig["id"], {})
+            if snap.get("online") and not (snap.get("status") or {}).get("test") \
+                    and (sy.get("hash") != h or sy.get("state") == "error") and sy.get("state") != "running":
+                threading.Thread(target=sync_rig, args=(rig,), daemon=True).start()
+
+
 def deploy(rid, launch_name):
+    """Avvia un lancio su un rig: prima lo allinea al catalogo, poi lo fa partire."""
     def step(text, state="running"):
         DEPLOY[rid] = {"launch": launch_name, "state": state, "step": text, "time": int(time.time())}
 
     try:
-        step("Preparo")
+        step("Allineo il rig")
         rig, launch = get_rig(rid), get_launch(launch_name)
         if not rig or not launch:
             raise RuntimeError("rig o lancio non trovato")
-        miner = get_miner(launch["miner"])
-        if not miner:
-            raise RuntimeError(f"il miner {launch['miner']} non è nel catalogo")
-        bin_dir = agent_call(rig, "GET", "status")["bin"]
-        have = {m["name"]: m["source"] for m in agent_call(rig, "GET", "miners")["miners"]}
-        if have.get(miner["name"]) != miner["url"]:
-            step(f"Installo {miner['name']}")
-            agent_call(rig, "POST", "miners", {"name": miner["name"], "url": miner["url"]})
-            deadline = time.time() + 1800
-            while True:
-                time.sleep(3)
-                job = agent_call(rig, "GET", "miners").get("job") or {}
-                if job.get("name") == miner["name"] and job.get("state") != "running":
-                    if job.get("state") == "error":
-                        raise RuntimeError(f"installazione di {miner['name']} non riuscita: {job.get('output', '')[-200:]}")
-                    break
-                if time.time() > deadline:
-                    raise RuntimeError("installazione troppo lunga, controlla il rig")
-        step("Scrivo il lancio")
-        file = f"{launch_name}.sh"
-        agent_call(rig, "PUT", f"launches/{file}", {"content": render(launch["content"], rig, bin_dir, miner["name"])})
+        sync_rig(rig, wait=True)
+        if SYNC.get(rid, {}).get("state") == "error":
+            raise RuntimeError(SYNC[rid]["msg"])
         step("Avvio")
-        agent_call(rig, "POST", f"launches/{file}/start", {})
+        agent_call(rig, "POST", f"launches/{launch_name}.sh/start", {})
         step(f"{launch_name} avviato", "ok")
         threading.Thread(target=poll_one, args=(rig,), daemon=True).start()
     except urllib.error.HTTPError:
@@ -416,6 +529,32 @@ def api_miner_put(name, body):
         con.execute("INSERT INTO miners (name, url) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET url = excluded.url", (name, url))
     with UPD_LOCK:
         CAT_UPD.pop(name, None)
+    catalog_changed()
+    return {"ok": True}
+
+
+def api_miner_rename(name, body):
+    new = str(body.get("name", "")).strip()
+    check_name(new, "miner")
+    if new == name:
+        return {"ok": True}
+    with DB_LOCK, db() as con:
+        if not con.execute("SELECT 1 FROM miners WHERE name = ?", (name,)).fetchone():
+            raise ApiError(404, "Miner non trovato")
+        if con.execute("SELECT 1 FROM miners WHERE name = ?", (new,)).fetchone():
+            raise ApiError(409, f"Esiste già un miner {new}")
+        con.execute("UPDATE miners SET name = ? WHERE name = ?", (new, name))
+        # i lanci seguono il miner: campo Miner e percorso della cartella
+        path = re.compile(r"(/miners/)" + re.escape(name) + r"(?![A-Za-z0-9._-])")
+        for lname, miner, content in con.execute("SELECT name, miner, content FROM launches").fetchall():
+            new_content = path.sub(lambda m: m.group(1) + new, content)
+            con.execute("UPDATE launches SET miner = ?, content = ? WHERE name = ?",
+                        (new if miner == name else miner, new_content, lname))
+        con.execute("INSERT INTO renames (old, new) VALUES (?, ?)", (name, new))
+    with UPD_LOCK:
+        if name in CAT_UPD:
+            CAT_UPD[new] = CAT_UPD.pop(name)
+    catalog_changed()
     return {"ok": True}
 
 
@@ -427,6 +566,7 @@ def api_miner_delete(name):
             raise ApiError(409, f"Il miner è indicato nel campo Miner dei lanci del catalogo: {names}. "
                                 "Elimina quei lanci o cambia il loro miner, poi riprova.")
         con.execute("DELETE FROM miners WHERE name = ?", (name,))
+    catalog_changed()
     return {"ok": True}
 
 
@@ -440,18 +580,22 @@ def api_launch_put(name, body):
         con.execute("""INSERT INTO launches (name, miner, content, updated) VALUES (?, ?, ?, ?)
                        ON CONFLICT(name) DO UPDATE SET miner = excluded.miner, content = excluded.content,
                        updated = excluded.updated""", (name, miner, content, int(time.time())))
-    targets = rigs_using(name) if body.get("redeploy") else []
-    for x in body.get("also") or []:  # il rig dal cui pannello si sta modificando il lancio
-        if str(x).isdigit() and int(x) not in targets:
-            targets.append(int(x))
-    for rid in targets:
-        threading.Thread(target=deploy, args=(rid, name), daemon=True).start()
-    return {"ok": True, "redeployed": len(targets)}
+    catalog_changed()  # lo specchio lo scrive su tutti i rig; dove è attivo riparte
+    return {"ok": True}
 
 
 def api_launch_delete(name):
+    # dove è in uso viene fermato, poi lo specchio lo toglie da tutti i rig
+    for rid in rigs_using(name):
+        rig = get_rig(rid)
+        if rig:
+            try:
+                agent_call(rig, "POST", "stop", {})
+            except (OSError, ValueError, urllib.error.HTTPError):
+                pass
     with DB_LOCK, db() as con:
         con.execute("DELETE FROM launches WHERE name = ?", (name,))
+    catalog_changed()
     return {"ok": True}
 
 
@@ -774,6 +918,7 @@ ROUTES = [
     ("POST", r"catalog/check", api_check),
     ("POST", r"catalog/import/(\d+)", api_import),
     ("POST", r"deploy", api_deploy),
+    ("POST", r"catalog/miners/([^/]+)/rename", api_miner_rename),
     ("POST", r"selfupdate", api_selfupdate),
     ("POST", r"selfcheck", api_selfcheck),
     ("POST", r"rigs/(\d+)/selfupdate", api_rig_selfupdate),
@@ -954,6 +1099,7 @@ if __name__ == "__main__":
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     srv.daemon_threads = True
     threading.Thread(target=poll_loop, daemon=True).start()
+    threading.Thread(target=sync_loop, daemon=True).start()
     threading.Thread(target=update_loop, daemon=True).start()
     print(f"minai-server {VERSION} in ascolto sulla porta {PORT}", flush=True)
     srv.serve_forever()

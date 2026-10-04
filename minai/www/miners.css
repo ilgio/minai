@@ -318,3 +318,6 @@ button.dangerfill { background: var(--bad); border-color: var(--bad); color: #ff
 #liveEditor .actions { flex-wrap: wrap; }
 .liveedmsg { margin: .5rem 0 0; color: var(--ok); }
 .liveedmsg.error { color: var(--bad); }
+.testbanner { border-color: rgba(240, 164, 58, .45); background: rgba(240, 164, 58, .08); }
+.actions.choices { flex-wrap: wrap; }
+.askdlg input { width: 100%; margin: 0 0 1rem; }

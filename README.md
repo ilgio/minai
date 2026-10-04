@@ -128,7 +128,8 @@ unzip minai.zip && bash minai/install.sh
   ```
 - **GPUs per rig:** each GPU card in the rig panel has an **Enabled/Disabled** switch. Most miners simply don't see disabled GPUs. For miners that need an explicit GPU list, write `%GPU_ENABLED%` in the launch: it becomes the rig's enabled GPUs, for example `0,1`. Don't hard-code GPU numbers in shared launches.
 - **Start on…**: pick the rigs.
-- **Tuning a launch:** in the rig panel, **Edit launch** opens the editor right above the live log. Save **for all rigs** (updates the catalog) or **for this rig only** (creates a dedicated copy), and watch the result immediately. Missing miners are installed, then the launch starts.
+- **Always in sync:** every change in the catalog (new, updated, renamed or deleted miners and launches) is applied to all rigs automatically. Renaming a miner keeps its folder and data.
+- **Test launches:** in the rig panel, **Edit launch** opens the editor right above the live log. **Try it** runs your version on that rig only, temporarily. When you close it, choose **Save on the server**, **Save as a new launch** or **Discard**. A forgotten test goes back to the catalog launch after 10 minutes. Missing miners are installed, then the launch starts.
 
 Already have a rig with miners and launches? Open its settings (⋯) in minai-server and choose **Import miners and launches from this rig**.
 

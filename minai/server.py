@@ -30,7 +30,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "0.9.18"
+VERSION = "0.9.19"
 ROOT = os.environ.get("MINERS_ROOT", "/opt/miners")
 CONF = f"{ROOT}/panel.json"
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
@@ -613,8 +613,9 @@ def speed_follower():
 def api_status(_):
     fan = {**AUTOFAN_DEFAULTS, **read_json(AUTOFAN_FILE, {})}
     state = miner_state()
+    test = test_state()
     return {"running": state == "running", "state": state, "stopped": os.path.exists(STOPPED),
-            "active": active_launch(), "bin": BIN,
+            "active": test["base"] if test else active_launch(), "test": test, "bin": BIN,
             "host": socket.gethostname(), "sys": dict(SYS),
             "version": VERSION, "driver": nvidia_driver(),
             "speed": {"value": SPEED["value"], "unit": SPEED["unit"]} if SPEED["value"] else None,
@@ -663,6 +664,20 @@ def api_miner_delete(name):
     path = check_miner(name)
     if os.path.isdir(path):
         run(["rm", "-rf", "--", path])
+    return {"ok": True}
+
+
+def api_miner_rename(name, body):
+    path = check_miner(name)
+    new = str(body.get("name", "")).strip()
+    if not MINER_RE.match(new):
+        raise ApiError(400, "Nome miner non valido: lettere, numeri, . _ -")
+    dest = os.path.join(BIN, new)
+    if not os.path.isdir(path):
+        raise ApiError(404, "Miner non trovato")
+    if os.path.exists(dest):
+        raise ApiError(409, f"Esiste già {new}")
+    os.rename(path, dest)  # stessa cartella, nome nuovo: modelli e dati restano
     return {"ok": True}
 
 
@@ -988,6 +1003,104 @@ def api_ts_logout():
     return ts_logout()
 
 
+# ---------- lancio di prova: una versione temporanea che gira solo su questo rig ----------
+
+TEST_FILE = f"{ROOT}/test-launch.sh"
+TEST_STATE = f"{ROOT}/test.json"
+TEST_TIMEOUT = 600   # senza segnali dal pannello per 10 minuti, si torna al lancio normale
+
+
+def test_state():
+    try:
+        with open(TEST_STATE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def api_test_get(_):
+    t = test_state()
+    if not t:
+        return {"test": None}
+    try:
+        with open(TEST_FILE) as f:
+            content = f.read()
+    except OSError:
+        content = ""
+    return {"test": t, "content": content}
+
+
+def api_test_start(body):
+    content = str(body.get("content", ""))
+    if not content.strip():
+        raise ApiError(400, "Il lancio di prova è vuoto")
+    t = test_state()
+    base = t["base"] if t else active_launch()
+    if not base:
+        raise ApiError(409, "Nessun lancio attivo da provare")
+    with open(TEST_FILE, "w") as f:
+        f.write(content.replace("\r\n", "\n"))
+    os.chmod(TEST_FILE, 0o755)
+    with open(TEST_STATE, "w") as f:
+        json.dump({"base": base, "since": (t or {}).get("since") or int(time.time()), "beat": int(time.time())}, f)
+    tmp = ACTIVE + ".tmp"
+    if os.path.lexists(tmp):
+        os.remove(tmp)
+    os.symlink(TEST_FILE, tmp)
+    os.replace(tmp, ACTIVE)
+    try:
+        os.remove(STOPPED)
+    except FileNotFoundError:
+        pass
+    SPEED.update(value=None, unit=None, key=False)
+    run(["systemctl", "restart", SVC])
+    return {"ok": True, "base": base}
+
+
+def api_test_keepalive(_body=None):
+    t = test_state()
+    if t:
+        t["beat"] = int(time.time())
+        with open(TEST_STATE, "w") as f:
+            json.dump(t, f)
+    return {"ok": bool(t)}
+
+
+def end_test(restart=True):
+    t = test_state()
+    if not t:
+        return
+    base = os.path.join(DIR, t["base"])
+    tmp = ACTIVE + ".tmp"
+    if os.path.lexists(tmp):
+        os.remove(tmp)
+    if os.path.exists(base):
+        os.symlink(base, tmp)
+        os.replace(tmp, ACTIVE)
+    for f in (TEST_STATE, TEST_FILE):
+        try:
+            os.remove(f)
+        except FileNotFoundError:
+            pass
+    if restart and not os.path.exists(STOPPED):
+        SPEED.update(value=None, unit=None, key=False)
+        run(["systemctl", "restart", SVC])
+
+
+def api_test_end(body):
+    end_test(restart=bool(body.get("restart", True)))
+    return {"ok": True}
+
+
+def test_watchdog():
+    while True:
+        time.sleep(30)
+        t = test_state()
+        if t and time.time() - t.get("beat", 0) > TEST_TIMEOUT:
+            print("Lancio di prova abbandonato: torno al lancio normale", flush=True)
+            end_test(restart=True)
+
+
 ROUTES = [
     ("GET", r"status", api_status),
     ("GET", r"miners", api_miners),
@@ -1008,6 +1121,11 @@ ROUTES = [
     ("PUT", r"oc", api_oc_put),
     ("POST", r"power", api_power),
     ("GET", r"settings", api_settings),
+    ("GET", r"test", api_test_get),
+    ("POST", r"test/start", api_test_start),
+    ("POST", r"test/keepalive", api_test_keepalive),
+    ("POST", r"test/end", api_test_end),
+    ("POST", r"miners/([^/]+)/rename", api_miner_rename),
     ("POST", r"rename", api_rename),
     ("POST", r"selfupdate", api_selfupdate),
     ("POST", r"selfcheck", api_selfcheck),
@@ -1179,7 +1297,7 @@ class Handler(BaseHTTPRequestHandler):
                             and managed() and not self.from_server:
                         raise ApiError(409, "Miner e lanci sono gestiti da minai-server: modificali da lì")
                     args = list(match.groups())
-                    if fn in (api_install, api_launch_put, api_oc_put, api_power, api_autofan_put, api_ts_up, api_rename, api_gpu_enable):
+                    if fn in (api_install, api_launch_put, api_oc_put, api_power, api_autofan_put, api_ts_up, api_rename, api_gpu_enable, api_test_start, api_test_end, api_miner_rename):
                         args.append(self.body())
                     elif method == "GET" and not args:
                         args.append(parse_qs(url.query))
@@ -1210,6 +1328,7 @@ if __name__ == "__main__":
     threading.Thread(target=sys_sampler, daemon=True).start()
     threading.Thread(target=speed_follower, daemon=True).start()
     threading.Thread(target=setup_beacon, daemon=True).start()
+    threading.Thread(target=test_watchdog, daemon=True).start()
     if not needs_setup():
         finish_console()  # schermata con il logo anche sui rig già configurati
     if PORT != 80:

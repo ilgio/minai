@@ -23,7 +23,20 @@ const EN = {
   // generale
   "Caricamento…": "Loading…", "Entra": "Log in", "Password": "Password", "Ripeti la password": "Repeat the password",
   "Salva e entra": "Save and log in", "Esci": "Log out", "Impostazioni": "Settings", "Menu": "Menu", "Sezioni": "Sections",
-  "Salva": "Save", "Annulla": "Cancel", "Modifica lancio": "Edit launch", "Salva per tutti i rig": "Save for all rigs",
+  "Salva": "Save", "Annulla": "Cancel", "Prova": "Try it", "Salva sul server": "Save on the server",
+  "Salva come nuovo lancio": "Save as a new launch", "Scarta": "Discard", "Continua la prova": "Keep testing",
+  "Riprendi la prova": "Resume the test", "Lancio di prova": "Test launch",
+  "Vuoi tenere il lancio di prova?": "Do you want to keep the test launch?",
+  "Nome del nuovo lancio": "Name of the new launch",
+  "Prova avviata solo su questo rig: guarda il log qui sotto.": "Test started on this rig only: watch the log below.",
+  "Lancio di prova in corso": "Test launch running",
+  ": questo rig sta usando una versione temporanea, non quella del catalogo. Se non la confermi, torna da solo al lancio del catalogo dopo 10 minuti.":
+    ": this rig is running a temporary version, not the catalog one. If you don't confirm it, it goes back to the catalog launch by itself after 10 minutes.",
+  "Salvato sul server: il lancio viene aggiornato su tutti i rig che lo usano.": "Saved on the server: the launch is updated on all rigs that use it.",
+  "Prova scartata: il rig torna al lancio del catalogo.": "Test discarded: the rig goes back to the catalog launch.",
+  "Il lancio di prova è vuoto": "The test launch is empty", "Nessun lancio attivo da provare": "No active launch to test",
+  "I miner del catalogo vengono installati e aggiornati da soli su tutti i rig.": "Catalog miners are installed and updated automatically on all rigs.",
+  "Allineo": "Syncing", "Allineo il rig": "Syncing the rig", "Allineato": "In sync", "Da allineare": "Out of sync", "Modifica lancio": "Edit launch", "Salva per tutti i rig": "Save for all rigs",
   "Salva solo per questo rig": "Save for this rig only", "Salva per tutti": "Save for all", "Salvo…": "Saving…",
   "In errore, riprovo…": "Failing, retrying…",
   "Salvato per tutti i rig che lo usano: il miner riparte, guarda il log qui sotto.": "Saved for all rigs using it: the miner restarts, watch the log below.",
@@ -279,6 +292,8 @@ const EN_RX = [
   [/^Togliere (.+) dal catalogo\? Sui rig resta installato\.$/, "Remove $1 from the catalog? It stays installed on the rigs."],
   [/^Avvia (.+)$/, "Start $1"],
   [/^(.+) \(offline\)$/, "$1 (offline)"],
+  [/^Lancio «(.+)», non più nel catalogo: con Prova gira solo su questo rig, e salvandolo ti chiederò un nome\.$/,
+   "Launch «$1», no longer in the catalog: Try it runs it on this rig only, and saving it will ask for a name."],
   [/^Installo (.+)$/, "Installing $1"],
   [/^(.+) avviato$/, "$1 started"],
   [/^Il miner è usato dai lanci: (.+)$/, "The miner is used by launches: $1"],
@@ -302,6 +317,19 @@ const EN_RX = [
   [/^  (.+): ok$/, (m, l) => `  ${trLabel(l)}: ok`],
   [/^  (.+): ERRORE (.+)$/, (m, l, e) => `  ${trLabel(l)}: ERROR ${e}`],
   [/^Errore (\d+)$/, "Error $1"],
+  [/^Lancio di prova basato su «(.+)»: gira solo su questo rig\.$/, "Test launch based on «$1»: it runs on this rig only."],
+  [/^Lancio «(.+)» del catalogo: modificalo e premi Prova\. La nuova versione gira solo su questo rig finché non decidi\.$/,
+   "Catalog launch «$1»: edit it and press Try it. The new version runs on this rig only until you decide."],
+  [/^Installo (.+)$/, "Installing $1"], [/^Scrivo (.+)$/, "Writing $1"], [/^Tolgo (.+)$/, "Removing $1"],
+  [/^Allineamento: (.+)$/, (m, x) => `Syncing: ${trOne(x)}`], [/^Non allineato: (.+)$/, (m, x) => `Out of sync: ${trOne(x)}`],
+  [/^Rinominare il miner (.+) in (.+)\? Sui rig la cartella viene rinominata \(dati compresi\) e i lanci che lo usano vengono aggiornati\.$/,
+   "Rename miner $1 to $2? On the rigs the folder is renamed (data included) and the launches using it are updated."],
+  [/^Eliminare il miner (.+)\? Viene tolto da tutti i rig, insieme alla sua cartella e ai dati che contiene \(per esempio modelli scaricati\)\.$/,
+   "Delete miner $1? It is removed from all rigs, together with its folder and the data in it (for example downloaded models)."],
+  [/^Eliminare il lancio (.+)\? È in uso su (.+): verrà fermato su quei rig\. Il lancio viene tolto da tutti i rig\.$/,
+   "Delete launch $1? It is in use on $2: it will be stopped on those rigs. The launch is removed from all rigs."],
+  [/^Eliminare il lancio (.+)\? Viene tolto da tutti i rig\.$/, "Delete launch $1? It is removed from all rigs."],
+  [/^Esiste già un miner (.+)$/, "A miner named $1 already exists"],
   [/^Il comando usa la cartella del miner (.+), ma nel campo Miner hai scelto (.+): sui rig verrebbe installato (.+)\. Vuoi usare (.+)\?$/,
    "The command uses the folder of miner $1, but the Miner field says $2: rigs would install $3. Use $4?"],
   [/^Usa (.+)$/, "Use $1"], [/^Tieni (.+)$/, "Keep $1"],
@@ -506,3 +534,40 @@ function addCredits() {
   foot.append(box);
 }
 addCredits();
+
+function choose(message, options) {
+  // options: [{label, value, cls}] — l'ultima con value null è "annulla"
+  return new Promise(resolve => {
+    const d = document.createElement("dialog"); d.className = "askdlg";
+    const p = document.createElement("p"); p.textContent = message;
+    const actions = document.createElement("div"); actions.className = "actions choices";
+    const done = v => { d.close(); d.remove(); resolve(v); };
+    for (const o of options) {
+      const b = document.createElement("button"); b.textContent = o.label;
+      if (o.cls) b.className = o.cls;
+      b.addEventListener("click", () => done(o.value));
+      actions.append(b);
+    }
+    d.append(p, actions); document.body.append(d);
+    d.addEventListener("cancel", ev => { ev.preventDefault(); done(null); });
+    d.showModal();
+  });
+}
+
+function askText(message, value = "") {
+  return new Promise(resolve => {
+    const d = document.createElement("dialog"); d.className = "askdlg";
+    const p = document.createElement("p"); p.textContent = message;
+    const input = document.createElement("input"); input.value = value; input.autocapitalize = "off"; input.spellcheck = false;
+    const actions = document.createElement("div"); actions.className = "actions";
+    const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "OK";
+    const no = document.createElement("button"); no.textContent = "Annulla";
+    const done = v => { d.close(); d.remove(); resolve(v); };
+    ok.addEventListener("click", () => done(input.value.trim() || null));
+    no.addEventListener("click", () => done(null));
+    input.addEventListener("keydown", ev => { if (ev.key === "Enter") done(input.value.trim() || null); });
+    d.addEventListener("cancel", ev => { ev.preventDefault(); done(null); });
+    actions.append(ok, no); d.append(p, input, actions); document.body.append(d);
+    d.showModal(); input.focus(); input.select();
+  });
+}

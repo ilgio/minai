@@ -133,6 +133,8 @@ async function refreshStatus() {
   $("dot").className = "dot " + (st === "running" ? "on" : st === "failing" ? "fail" : "off");
   $("state").textContent = st === "running" ? "In esecuzione" : st === "failing" ? "In errore, riprovo…" : "Fermo";
   minerState = st;
+  if (s.test) $("state").textContent += " · Lancio di prova";
+  $("testBanner").hidden = !(s.test && managed && VIA_SERVER && $("liveEditor").hidden);
   $("btnEditActive").hidden = !active || (managed && !VIA_SERVER);
   $("activeName").textContent = active ? active.replace(/\.sh$/, "") : "nessun lancio attivo";
   $("btnStop").disabled = st === "stopped";
@@ -814,8 +816,9 @@ $("btnSelfCheck").addEventListener("click", async () => {
   try { await api("POST", "selfcheck"); await refreshStatus(); } catch (e) { showError(e); }
 });
 
-/* ---------- modifica del lancio attivo, con il log sotto gli occhi ---------- */
-let liveEd = null;   // {mode: "local" | "catalog", name, miner, rigId, rigName, copy}
+/* ---------- lancio di prova: si modifica sopra il log, gira solo su questo rig ---------- */
+let liveEd = null;     // {mode: "local" | "catalog", name, miner, rigId, inCatalog}
+let testOn = false, testBeat = null;
 async function srvApi(method, path, body) {
   const opts = { method, credentials: "same-origin", headers: {} };
   if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
@@ -828,23 +831,28 @@ function liveMsg(text, err) {
   const m = $("liveEdMsg");
   m.hidden = !text; m.textContent = text || ""; m.classList.toggle("error", !!err);
 }
+function setTesting(on) {
+  testOn = on;
+  if (on && !testBeat) testBeat = setInterval(() => api("POST", "test/keepalive").catch(() => {}), 30000);
+  if (!on && testBeat) { clearInterval(testBeat); testBeat = null; }
+}
 async function openLiveEditor() {
   liveMsg("");
   const name = active.replace(/\.sh$/, "");
   try {
     if (managed && VIA_SERVER) {
       const rigId = Number(location.pathname.match(/\/rig\/(\d+)\//)[1]);
-      const [cat, rigs] = await Promise.all([srvApi("GET", "catalog"), srvApi("GET", "rigs")]);
-      const rig = rigs.rigs.find(r => r.id === rigId) || {};
+      const cat = await srvApi("GET", "catalog");
       const l = cat.launches.find(x => x.name === name);
-      if (!l) throw new Error("Questo lancio non è nel catalogo di minai-server.");
-      const rigName = String(rig.name || "rig").replace(/[^A-Za-z0-9._-]/g, "-");
-      const copy = name.endsWith(`-${rigName}`) && cat.launches.some(x => x.name === name.slice(0, -rigName.length - 1));
-      liveEd = { mode: "catalog", name, miner: l.miner, rigId, rigName, copy };
-      $("liveEdText").value = l.content;
-      $("liveEdNote").textContent = copy
-        ? `Lancio «${name}», copia dedicata a questo rig.`
-        : `Lancio «${name}» del catalogo, usato su ${l.rigs.length || 1} rig.`;
+      liveEd = { mode: "catalog", name, miner: l ? l.miner : "", rigId, inCatalog: !!l };
+      let content = l ? l.content : "";
+      const t = await api("GET", "test");
+      if (t.test) { content = t.content; setTesting(true); }
+      $("liveEdText").value = content;
+      $("liveEdNote").textContent = testOn
+        ? `Lancio di prova basato su «${name}»: gira solo su questo rig.`
+        : l ? `Lancio «${name}» del catalogo: modificalo e premi Prova. La nuova versione gira solo su questo rig finché non decidi.`
+            : `Lancio «${name}», non più nel catalogo: con Prova gira solo su questo rig, e salvandolo ti chiederò un nome.`;
     } else {
       const d = await api("GET", `launches/${encodeURIComponent(active)}`);
       liveEd = { mode: "local", name };
@@ -852,38 +860,74 @@ async function openLiveEditor() {
       $("liveEdNote").textContent = `Lancio «${name}» di questo rig.`;
     }
   } catch (e) { showError(e); return; }
-  const cat = liveEd.mode === "catalog" && !liveEd.copy;
-  $("btnLiveAll").hidden = !cat; $("btnLiveOne").hidden = !cat; $("btnLiveSave").hidden = cat;
+  const cat = liveEd.mode === "catalog";
+  $("btnLiveTest").hidden = !cat; $("btnLiveSave").hidden = cat;
+  $("testBanner").hidden = true;
   $("liveEditor").hidden = false;
   $("liveEdText").focus();
 }
-async function saveLive(scope) {
-  const content = $("liveEdText").value;
-  liveMsg("Salvo…");
+async function runTest() {
   try {
-    if (liveEd.mode === "local") {
-      await api("PUT", `launches/${encodeURIComponent(active)}`, { content });
-      if (minerState === "stopped") await api("POST", `launches/${encodeURIComponent(active)}/start`);
-    } else if (scope === "one" && !liveEd.copy) {
-      // copia dedicata a questo rig, che parte qui; gli altri rig restano come sono
-      const copyName = `${liveEd.name}-${liveEd.rigName}`;
-      await srvApi("PUT", `catalog/launches/${encodeURIComponent(copyName)}`, { miner: liveEd.miner, content, redeploy: true, also: [liveEd.rigId] });
-      liveEd = { ...liveEd, name: copyName, copy: true };
-      $("liveEdNote").textContent = `Lancio «${copyName}», copia dedicata a questo rig.`;
-      $("btnLiveAll").hidden = true; $("btnLiveOne").hidden = true; $("btnLiveSave").hidden = false;
-    } else {
-      await srvApi("PUT", `catalog/launches/${encodeURIComponent(liveEd.name)}`, { miner: liveEd.miner, content, redeploy: true, also: [liveEd.rigId] });
-    }
-    liveMsg(scope === "all" ? "Salvato per tutti i rig che lo usano: il miner riparte, guarda il log qui sotto." : "Salvato: il miner riparte, guarda il log qui sotto.");
+    await api("POST", "test/start", { content: $("liveEdText").value });
+    setTesting(true);
+    $("liveEdNote").textContent = `Lancio di prova basato su «${liveEd.name}»: gira solo su questo rig.`;
+    liveMsg("Prova avviata solo su questo rig: guarda il log qui sotto.");
+    refreshStatus().catch(() => {});
   } catch (e) { liveMsg(e.message, true); }
 }
+// chiude la prova chiedendo cosa farne; true se è finita, false se si continua
+async function finishTest() {
+  const choice = await choose("Vuoi tenere il lancio di prova?", [
+    { label: "Salva sul server", value: "save", cls: "primary" },
+    { label: "Salva come nuovo lancio", value: "new" },
+    { label: "Scarta", value: "discard", cls: "dangerfill" },
+    { label: "Continua la prova", value: null },
+  ]);
+  if (!choice) return false;
+  let content = $("liveEdText").value;
+  if ($("liveEditor").hidden) { try { content = (await api("GET", "test")).content; } catch {} }
+  try {
+    if (choice === "discard") {
+      await api("POST", "test/end", { restart: true });
+      liveMsg("Prova scartata: il rig torna al lancio del catalogo.");
+    } else {
+      let name = liveEd.name;
+      if (choice === "new" || !liveEd.inCatalog) {
+        name = await askText("Nome del nuovo lancio", `${liveEd.name}-2`);
+        if (!name) return false;
+      }
+      await api("POST", "test/end", { restart: false });
+      await srvApi("PUT", `catalog/launches/${encodeURIComponent(name)}`, { miner: liveEd.miner, content });
+      if (name !== liveEd.name) await srvApi("POST", "deploy", { launch: name, rigs: [liveEd.rigId] });
+      liveMsg("Salvato sul server: il lancio viene aggiornato su tutti i rig che lo usano.");
+    }
+  } catch (e) { liveMsg(e.message, true); return false; }
+  setTesting(false);
+  $("liveEditor").hidden = true;
+  refreshStatus().catch(() => {});
+  return true;
+}
+async function closeLive() {
+  if (testOn) await finishTest(); else $("liveEditor").hidden = true;
+}
 $("btnEditActive").addEventListener("click", openLiveEditor);
-$("btnLiveAll").addEventListener("click", async () => {
-  if (await ask(`Salvare il lancio «${liveEd.name}» per tutti i rig che lo usano? Ripartiranno con la nuova versione.`, { ok: "Salva per tutti" })) saveLive("all");
+$("btnTestResume").addEventListener("click", openLiveEditor);
+$("btnLiveTest").addEventListener("click", runTest);
+$("btnLiveSave").addEventListener("click", async () => {
+  try {
+    await api("PUT", `launches/${encodeURIComponent(active)}`, { content: $("liveEdText").value });
+    if (minerState === "stopped") await api("POST", `launches/${encodeURIComponent(active)}/start`);
+    liveMsg("Salvato: il miner riparte, guarda il log qui sotto.");
+  } catch (e) { liveMsg(e.message, true); }
 });
-$("btnLiveOne").addEventListener("click", () => saveLive("one"));
-$("btnLiveSave").addEventListener("click", () => saveLive("this"));
-$("btnLiveClose").addEventListener("click", () => { $("liveEditor").hidden = true; });
+$("btnLiveClose").addEventListener("click", closeLive);
+// uscendo dal pannello con una prova aperta, si decide cosa farne
+$("backLink").addEventListener("click", async ev => {
+  if (!testOn) return;
+  ev.preventDefault();
+  if (await finishTest()) location.href = SERVER_HOME;
+});
+window.addEventListener("beforeunload", ev => { if (testOn) { ev.preventDefault(); ev.returnValue = ""; } });
 
 /* ---------- menu in alto a destra ---------- */
 function setMenu(open) {

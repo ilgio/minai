@@ -128,7 +128,8 @@ unzip minai.zip && bash minai/install.sh
   ```
 - **GPU per rig:** ogni scheda GPU nel pannello del rig ha l'interruttore **Attiva/Disattivata**. La maggior parte dei miner semplicemente non vede le GPU disattivate. Per i miner che vogliono l'elenco delle GPU, scrivi `%GPU_ENABLED%` nel lancio: diventa l'elenco delle GPU attive del rig, per esempio `0,1`. Nei lanci condivisi non scrivere numeri di GPU fissi.
 - **Avvia su…**: scegli i rig.
-- **Mettere a punto un lancio:** nel pannello del rig, **Modifica lancio** apre l'editor proprio sopra il log in tempo reale. Salvi **per tutti i rig** (aggiorna il catalogo) o **solo per questo rig** (crea una copia dedicata) e vedi subito il risultato. Se manca il miner viene installato, poi il lancio parte.
+- **Sempre allineati:** ogni modifica al catalogo (miner e lanci nuovi, aggiornati, rinominati o eliminati) arriva da sola su tutti i rig. Rinominando un miner, cartella e dati restano.
+- **Lanci di prova:** nel pannello del rig, **Modifica lancio** apre l'editor proprio sopra il log in tempo reale. **Prova** fa girare la tua versione solo su quel rig, temporaneamente. Quando chiudi scegli **Salva sul server**, **Salva come nuovo lancio** o **Scarta**. Una prova dimenticata torna da sola al lancio del catalogo dopo 10 minuti. Se manca il miner viene installato, poi il lancio parte.
 
 Hai già un rig con miner e lanci? Apri le sue impostazioni (⋯) in minai-server e scegli **Importa miner e lanci da questo rig**.
 
