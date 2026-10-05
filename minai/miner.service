@@ -7,6 +7,12 @@ ConditionPathExists=/opt/miners/active.sh
 ConditionPathExists=!/opt/miners/stopped
 
 [Service]
+# il miner gira come utente normale, non come root: un miner difettoso o malevolo non tocca il sistema
+User=OWNER_USER
+Group=OWNER_GROUP
+Environment=HOME=OWNER_HOME
+# cartella temporanea in /run/minai, scrivibile dal miner
+RuntimeDirectory=minai
 # script crea un terminale virtuale: il miner scrive subito ogni riga invece di accumularle
 Environment=TERM=xterm
 ExecStart=/usr/bin/script -qfec "/bin/bash /opt/miners/run-launch.sh" /dev/null

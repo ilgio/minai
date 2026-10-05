@@ -54,9 +54,14 @@
     </form>
   </main>
 
+  <div id="bootLoader" class="boot"><img src="logo.svg" alt="" width="56" height="56"><span class="spin"></span><p>Carico il rig…</p></div>
   <div id="app" hidden>
     <div class="brandbar">
       <a id="backLink" class="backbtn" hidden><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>Tutti i rig</a>
+      <div class="rigswitchwrap">
+        <button id="rigSwitch" class="rigswitch" hidden aria-label="Altri rig" aria-haspopup="true"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div id="rigMenu" class="rigmenu" hidden></div>
+      </div>
       <img src="logo.svg" alt="" width="30" height="30">
       <span class="wordmark">minai</span>
       <button id="btnSelfUpdate" class="newver" hidden></button>
@@ -141,10 +146,7 @@
             <button id="btnNewMiner" class="primary">Installa miner</button>
           </div>
         </div>
-        <div class="managedbox" hidden>
-          <p>Miner e lanci sono <strong>gestiti da minai-server</strong>: creali e modificali da lì, e il server li aggiorna su questo rig.</p>
-          <a class="button primary gotoServer" hidden>Apri il catalogo sul server</a>
-        </div>
+        <p class="managedbox managednote" hidden><span>Gestiti da minai-server.</span> <a class="gotoServer" hidden>Apri sul server ›</a></p>
         <div id="minerForm" class="form card" hidden>
           <label>Nome <input id="minerName" placeholder="racer" spellcheck="false" autocapitalize="off"></label>
           <label>Link del pacchetto (.tar.gz, .zip o binario)
@@ -170,10 +172,7 @@
           <h2>Lanci</h2>
           <button id="btnNewLaunch" class="primary">Nuovo lancio</button>
         </div>
-        <div class="managedbox" hidden>
-          <p>Miner e lanci sono <strong>gestiti da minai-server</strong>: creali e modificali da lì. Da qui puoi comunque avviarli e fermarli.</p>
-          <a class="button primary gotoServer" hidden>Apri i lanci sul server</a>
-        </div>
+        <p class="managedbox managednote" hidden><span>Gestiti da minai-server: da qui puoi avviarli e fermarli.</span> <a class="gotoServer" hidden>Apri sul server ›</a></p>
         <div id="editor" class="form card" hidden>
           <h3 id="editorTitle"></h3>
           <div id="newFields" class="row">

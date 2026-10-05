@@ -321,3 +321,29 @@ button.dangerfill { background: var(--bad); border-color: var(--bad); color: #ff
 .testbanner { border-color: rgba(240, 164, 58, .45); background: rgba(240, 164, 58, .08); }
 .actions.choices { flex-wrap: wrap; }
 .askdlg input { width: 100%; margin: 0 0 1rem; }
+/* caricamento iniziale */
+.boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+        background: var(--bg); color: var(--muted); font-size: 14px; z-index: 50; }
+.boot[hidden] { display: none; }
+.boot .spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent);
+              animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* cambio rapido del rig */
+.rigswitchwrap { position: relative; margin-right: .4rem; }
+.rigswitch { padding: .35rem .45rem; border-radius: 99px; background: rgba(92, 200, 250, .12); border: 1px solid rgba(92, 200, 250, .4); color: #5cc8fa; }
+.rigswitch svg { width: 16px; height: 16px; stroke-width: 2.4; display: block; }
+.rigmenu { position: absolute; top: calc(100% + .4rem); left: 0; z-index: 30; min-width: 12rem; max-height: 60vh; overflow-y: auto;
+           background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .35rem; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+.rigmenu p { margin: .4rem .5rem; }
+.rigitem { display: flex; align-items: center; gap: .55rem; width: 100%; padding: .5rem .6rem; border: 0; background: none; text-align: left;
+           color: var(--fg); border-radius: 8px; font-size: 14px; }
+.rigitem:hover:not(:disabled) { background: var(--surface-2); }
+.rigitem.here { color: var(--accent); }
+.rigitem:disabled { opacity: .7; cursor: default; }
+.rigitem .dot { width: 9px; height: 9px; flex: none; }
+/* avviso "gestiti dal server": una riga sola */
+.managedbox.managednote { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .3rem .8rem;
+                          padding: .45rem .75rem; margin: .25rem 0 .8rem; font-size: 12.5px; }
+.managedbox.managednote[hidden] { display: none; }
+.managednote a { color: #5cc8fa; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.dot.gone { background: var(--muted); opacity: .5; }

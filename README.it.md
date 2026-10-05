@@ -143,6 +143,7 @@ Quando esce una nuova versione, accanto al logo compare il badge arancione **vX.
 
 - **Scadenza di Tailscale:** di default Tailscale chiede ai dispositivi di rifare l'accesso ogni 180 giorni. minai-server ti avvisa e ti mostra, con un'immagine, come disattivarla una volta per dispositivo.
 - **`minai-setup.local` non si apre?** I nomi `.local` funzionano solo dentro la stessa rete. Se telefono e rig sono su reti/VLAN diverse, usa l'indirizzo IP che compare sullo schermo del rig, oppure attiva l'mDNS nel router.
+- **I miner girano come utente normale, non come root:** un miner difettoso o malevolo non può toccare il sistema. I lanci non devono scrivere in cartelle di sistema come `/opt`, `/root` o `/var`: usa la cartella del miner o `~/models`.
 - **Il miner fermato resta fermo:** se fermi il miner dal pannello, non riparte dopo un riavvio finché non avvii un lancio.
 - **Registri:** primo avvio `/var/log/minai-firstboot.log`, aggiornamenti del rig `/opt/miners/update.log`.
 

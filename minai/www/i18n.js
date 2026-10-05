@@ -23,7 +23,9 @@ const EN = {
   // generale
   "Caricamento…": "Loading…", "Entra": "Log in", "Password": "Password", "Ripeti la password": "Repeat the password",
   "Salva e entra": "Save and log in", "Esci": "Log out", "Impostazioni": "Settings", "Menu": "Menu", "Sezioni": "Sections",
-  "Salva": "Save", "Annulla": "Cancel", "Prova": "Try it", "Salva sul server": "Save on the server",
+  "Salva": "Save", "Annulla": "Cancel", "Carico il rig…": "Loading the rig…", "Carico…": "Loading…", "Altri rig": "Other rigs",
+  "Gestiti da minai-server.": "Managed by minai-server.", "Apri sul server ›": "Open on the server ›",
+  "Gestiti da minai-server: da qui puoi avviarli e fermarli.": "Managed by minai-server: from here you can start and stop them.", "Prova": "Try it", "Salva sul server": "Save on the server",
   "Salva come nuovo lancio": "Save as a new launch", "Scarta": "Discard", "Continua la prova": "Keep testing",
   "Riprendi la prova": "Resume the test", "Lancio di prova": "Test launch",
   "Vuoi tenere il lancio di prova?": "Do you want to keep the test launch?",

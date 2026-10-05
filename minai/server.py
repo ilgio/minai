@@ -30,7 +30,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "0.9.19"
+VERSION = "0.9.20"
 ROOT = os.environ.get("MINERS_ROOT", "/opt/miners")
 CONF = f"{ROOT}/panel.json"
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
@@ -585,6 +585,14 @@ NOT_SPEED = re.compile(r"^(?:[kKMGTP]i?)?(?:B|b|bit|bps)/s$|^it/s$")
 SPEED_KEY = re.compile(r"total|hashrate|speed", re.I)
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 SPEED = {"value": None, "unit": None, "key": False}
+PER_GPU = {}   # miner che scrivono una riga per GPU: indice -> (valore, unità, ora)
+GPU_IN_LINE = re.compile(r"\bGPU\s*#?\s*(\d+)\b", re.I)
+TOTAL_IN_LINE = re.compile(r"\btotal", re.I)
+
+
+def reset_speed():
+    SPEED.update(value=None, unit=None, key=False, total=False, time=0)
+    PER_GPU.clear()
 
 
 def parse_speed(line):
@@ -592,10 +600,24 @@ def parse_speed(line):
     found = [f for f in SPEED_RE.findall(line) if not NOT_SPEED.match(f[1])]
     if not found:
         return
+    value, unit = found[-1]
+    now = time.time()
+    if TOTAL_IN_LINE.search(line):  # il miner scrive già il totale: vale quello
+        SPEED.update(value=value, unit=unit, key=True, total=True, time=now)
+        return
+    gpu = GPU_IN_LINE.search(line)
+    if gpu:
+        if SPEED.get("total") and now - SPEED.get("time", 0) < 120:
+            return
+        # una riga per GPU: si somma l'ultimo valore di ogni scheda (degli ultimi 2 minuti)
+        PER_GPU[int(gpu.group(1))] = (float(value.replace(",", ".")), unit, now)
+        fresh = [v for v, u, t in PER_GPU.values() if u == unit and now - t < 120]
+        SPEED.update(value=f"{sum(fresh):.2f}", unit=unit, key=True, total=False, time=now)
+        return
     is_key = bool(SPEED_KEY.search(line))
     if not is_key and SPEED["key"]:
         return
-    SPEED.update(value=found[-1][0], unit=found[-1][1], key=SPEED["key"] or is_key)
+    SPEED.update(value=value, unit=unit, key=SPEED["key"] or is_key, time=now)
 
 
 def speed_follower():
@@ -757,7 +779,7 @@ def api_launch_start(name):
         pass
     os.symlink(path, tmp)
     os.replace(tmp, ACTIVE)
-    SPEED.update(value=None, unit=None, key=False)
+    reset_speed()
     try:
         os.remove(STOPPED)
     except FileNotFoundError:
@@ -1052,7 +1074,7 @@ def api_test_start(body):
         os.remove(STOPPED)
     except FileNotFoundError:
         pass
-    SPEED.update(value=None, unit=None, key=False)
+    reset_speed()
     run(["systemctl", "restart", SVC])
     return {"ok": True, "base": base}
 
@@ -1083,7 +1105,7 @@ def end_test(restart=True):
         except FileNotFoundError:
             pass
     if restart and not os.path.exists(STOPPED):
-        SPEED.update(value=None, unit=None, key=False)
+        reset_speed()
         run(["systemctl", "restart", SVC])
 
 

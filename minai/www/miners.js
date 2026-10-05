@@ -68,6 +68,7 @@ function showLogin(setup = false, host = "") {
   $("loginPassword").autocomplete = setup ? "new-password" : "current-password";
   $("btnLogin").textContent = setup ? "Salva e entra" : "Entra";
   $("app").hidden = true;
+  $("bootLoader").hidden = true;
   $("login").hidden = false;
   $("loginPassword").focus();
 }
@@ -559,7 +560,12 @@ function openTerm(reload) {
   // sul telefono usa il terminale con i caratteri piccoli (stessa sessione tmux)
   const base = matchMedia("(max-width: 700px)").matches ? "termm" : "term";
   if (!f.getAttribute("src") || reload || !f.getAttribute("src").startsWith(base + "/")) f.src = `${base}/?t=${Date.now()}`;
-  setTimeout(() => { try { f.contentWindow.focus(); } catch {} }, 300);
+  // la tab era nascosta: si cambia la misura di un pixel e la si rimette, così terminale e tmux si ridisegnano
+  f.style.height = "calc(100% - 1px)";
+  setTimeout(() => {
+    f.style.height = "";
+    try { f.contentWindow.dispatchEvent(new Event("resize")); f.contentWindow.focus(); } catch {}
+  }, 120);
 }
 
 /* ---------- spegnimento e riavvio ---------- */
@@ -594,7 +600,8 @@ function showTab(name) {
 
 /* ---------- avvio ---------- */
 async function refresh() {
-  try { await refreshStatus(); await refreshMiners(); await refreshLaunches(); }
+  // prima lo stato (serve a sapere se il rig è gestito dal server), poi miner e lanci in parallelo
+  try { await refreshStatus(); await Promise.all([refreshMiners(), refreshLaunches()]); }
   catch (e) { if (e.message !== "Accesso richiesto") showError(e); throw e; }
 }
 
@@ -605,7 +612,8 @@ async function start() {
       if (a.setup) { showLogin(true, a.host); return; }
     } catch {}
   }
-  try { await refresh(); } catch { return; }
+  try { await refresh(); } catch { $("bootLoader").hidden = true; return; }
+  $("bootLoader").hidden = true;
   $("app").hidden = false;
   pollLog();
   gpus();
@@ -842,9 +850,10 @@ async function openLiveEditor() {
   try {
     if (managed && VIA_SERVER) {
       const rigId = Number(location.pathname.match(/\/rig\/(\d+)\//)[1]);
-      const cat = await srvApi("GET", "catalog");
+      const [cat, rigs] = await Promise.all([srvApi("GET", "catalog"), srvApi("GET", "rigs")]);
       const l = cat.launches.find(x => x.name === name);
-      liveEd = { mode: "catalog", name, miner: l ? l.miner : "", rigId, inCatalog: !!l };
+      const rig = rigs.rigs.find(r => r.id === rigId) || {};
+      liveEd = { mode: "catalog", name, miner: l ? l.miner : "", rigId, inCatalog: !!l, rigName: rig.name || "" };
       let content = l ? l.content : "";
       const t = await api("GET", "test");
       if (t.test) { content = t.content; setTesting(true); }
@@ -868,7 +877,11 @@ async function openLiveEditor() {
 }
 async function runTest() {
   try {
-    await api("POST", "test/start", { content: $("liveEdText").value });
+    // nella prova il rig riceve il lancio già pronto, come quando lo scrive il server
+    const dir = `${binDir}/${liveEd.miner}`;
+    const content = $("liveEdText").value.replaceAll("%WORKER_NAME%", liveEd.rigName || "rig")
+      .replaceAll("%MINER_DIR%", dir).replaceAll("%HOME%", binDir.replace(/\/[^/]+$/, ""));
+    await api("POST", "test/start", { content });
     setTesting(true);
     $("liveEdNote").textContent = `Lancio di prova basato su «${liveEd.name}»: gira solo su questo rig.`;
     liveMsg("Prova avviata solo su questo rig: guarda il log qui sotto.");
@@ -910,6 +923,38 @@ async function finishTest() {
 async function closeLive() {
   if (testOn) await finishTest(); else $("liveEditor").hidden = true;
 }
+/* ---------- cambio rapido del rig (pannello aperto dal server) ---------- */
+async function goToRig(url) {
+  if (testOn && !await finishTest()) return;
+  testOn = false;
+  location.href = url;
+}
+$("rigSwitch").addEventListener("click", async ev => {
+  ev.stopPropagation();
+  const menu = $("rigMenu");
+  if (!menu.hidden) { menu.hidden = true; return; }
+  menu.replaceChildren(Object.assign(document.createElement("p"), { className: "muted small", textContent: "Carico…" }));
+  menu.hidden = false;
+  try {
+    const d = await srvApi("GET", "rigs");
+    const here = Number((location.pathname.match(/\/rig\/(\d+)\//) || [])[1]);
+    menu.replaceChildren();
+    for (const r of d.rigs) {
+      const st = r.status || {};
+      const b = document.createElement("button");
+      b.className = "rigitem" + (r.id === here ? " here" : "");
+      const dot = document.createElement("span");
+      dot.className = "dot " + (!r.online ? "gone" : st.state === "running" || st.running ? "on" : st.state === "failing" ? "fail" : "off");
+      const n = document.createElement("span"); n.textContent = r.name; n.setAttribute("data-noi18n", "");
+      b.append(dot, n);
+      if (r.id !== here && r.online) b.addEventListener("click", () => goToRig(`${SERVER_HOME}rig/${r.id}/`));
+      else b.disabled = true;
+      menu.append(b);
+    }
+  } catch (e) { menu.hidden = true; showError(e); }
+});
+document.addEventListener("click", ev => { if (!ev.target.closest(".rigswitchwrap")) $("rigMenu").hidden = true; });
+
 $("btnEditActive").addEventListener("click", openLiveEditor);
 $("btnTestResume").addEventListener("click", openLiveEditor);
 $("btnLiveTest").addEventListener("click", runTest);
@@ -955,6 +1000,7 @@ $("btnOcReset").addEventListener("click", () => applyOc(true));
 
 if (VIA_SERVER) {
   $("backLink").hidden = false;
+  $("rigSwitch").hidden = false;
   $("backLink").href = SERVER_HOME;
   $("btnLogout").lastChild.textContent = "Tutti i rig";
 }

@@ -43,7 +43,12 @@ sudo install -m 755 oc.py /opt/miners/oc.py
 sudo install -m 755 autofan.py /opt/miners/autofan.py
 sudo install -m 755 update.sh /opt/miners/update.sh
 sudo install -m 755 run-launch.sh /opt/miners/run-launch.sh
-sudo install -m 644 miner.service oc.service miner-panel.service miner-autofan.service /etc/systemd/system/
+sudo install -m 644 oc.service miner-panel.service miner-autofan.service /etc/systemd/system/
+# il miner gira come utente normale (con la sua cartella personale come HOME)
+sed -e "s|OWNER_USER|$U|" -e "s|OWNER_GROUP|$(id -gn "$U")|" -e "s|OWNER_HOME|$HOME_DIR|" miner.service \
+  | sudo tee /etc/systemd/system/miner.service >/dev/null
+# migrazione: file e modelli creati quando il miner girava come root diventano dell'utente
+sudo chown -R "$OWNER" "$BIN" "$HOME_DIR/models" 2>/dev/null || true
 sed -e "s|TTYD_BIN|$(command -v ttyd)|" -e "s|OWNER_USER|$U|" miner-terminal.service \
   | sudo tee /etc/systemd/system/miner-terminal.service >/dev/null
 # seconda copia del terminale con caratteri piccoli per il telefono (stessa sessione tmux)
@@ -69,6 +74,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable miner.service oc.service >/dev/null
 sudo systemctl enable miner-panel.service miner-terminal.service miner-terminal-mobile.service miner-autofan.service >/dev/null
 sudo systemctl restart miner-terminal.service miner-terminal-mobile.service miner-autofan.service miner-panel.service
+# se il miner sta girando, riparte subito come utente normale
+sudo systemctl try-restart miner.service 2>/dev/null || true
 
 # Il vecchio pannello di Cockpit non serve più
 [ -d /usr/share/cockpit/miners ] && sudo rm -rf /usr/share/cockpit/miners && echo "Rimosso il vecchio pannello da Cockpit."

@@ -143,6 +143,7 @@ When a new version is published, an orange **vX.Y available** badge appears next
 
 - **Tailscale key expiry:** by default Tailscale asks devices to log in again every 180 days. minai-server warns you and shows, with a picture, how to disable it once per device.
 - **`minai-setup.local` doesn't open?** `.local` names only work inside the same network. If your phone and the rig are on different networks/VLANs, use the IP address shown on the rig's screen, or enable mDNS in your router.
+- **Miners run as the normal user, not root:** a faulty or malicious miner can't touch the system. Launches must not write to system folders such as `/opt`, `/root` or `/var`; use the miner folder or `~/models`.
 - **Stopped miners stay stopped:** if you stop the miner from the panel, it won't start again after a reboot until you start a launch.
 - **Logs:** first boot `/var/log/minai-firstboot.log`, rig updates `/opt/miners/update.log`.
 
