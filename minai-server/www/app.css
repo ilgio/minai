@@ -245,3 +245,21 @@ button.dangerfill { background: var(--bad); border-color: var(--bad); color: #ff
 .syncnote.err { color: var(--warn); }
 .testtag { display: inline-block; margin-left: .4rem; font-size: 11px; font-weight: 600; padding: .1rem .5rem; border-radius: 99px;
            color: var(--accent); background: rgba(240, 164, 58, .12); }
+/* caricamento iniziale */
+.boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+        background: var(--bg); color: var(--muted); font-size: 14px; z-index: 50; }
+.boot[hidden] { display: none; }
+.boot .spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent);
+              animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* intestazioni compatte di Miner e Lanci */
+.compacthead { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .6rem; }
+.compacthead h2 { display: flex; align-items: center; gap: .55rem; margin: 0; }
+.hinfo { font-size: 12px; font-weight: 400; color: var(--muted); }
+.hinfo.upd { font-weight: 600; color: var(--accent-fg); background: var(--accent); padding: .1rem .5rem; border-radius: 99px; }
+.hbtn { display: inline-flex; align-items: center; gap: .4rem; }
+.hbtn svg { width: 16px; height: 16px; }
+@media (max-width: 700px) {
+  .hbtn .btxt { display: none; }
+  .hbtn { padding: .45rem .55rem; }
+}

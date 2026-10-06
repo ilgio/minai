@@ -50,11 +50,49 @@ if ! tailscale status >/dev/null 2>&1; then
 fi
 $SUDO tailscale set --operator=minai 2>/dev/null || true
 
+# Indirizzo sicuro (https://minai-server.…ts.net) servito da Tailscale con un certificato vero.
+# Se la rete non l'ha ancora autorizzato, Tailscale dà un link: lo mostriamo anche come QR.
+HTTPS_URL=""
+if tailscale status >/dev/null 2>&1; then
+  # solo installando a mano (con un terminale): negli aggiornamenti automatici non c'è nessuno a cliccare
+  if [ -t 1 ] && ! tailscale serve status --json 2>/dev/null | grep -q '"Web"'; then
+    say "Indirizzo sicuro (HTTPS)"
+    command -v qrencode >/dev/null || $SUDO apt-get install -y -qq qrencode >/dev/null 2>&1 || true
+    OUT=$(mktemp)
+    $SUDO timeout 300 tailscale serve --bg "$PORT" > "$OUT" 2>&1 &
+    SERVE_PID=$!
+    trap 'kill "$SERVE_PID" 2>/dev/null' INT   # Ctrl+C salta solo questo passaggio
+    SHOWN=""
+    while kill -0 "$SERVE_PID" 2>/dev/null; do
+      LINK=$(grep -o 'https://login\.tailscale\.com/[^[:space:]]*' "$OUT" | head -1)
+      if [ -n "$LINK" ] && [ -z "$SHOWN" ]; then
+        echo "Tailscale chiede di autorizzare l'indirizzo sicuro, una volta sola."
+        echo "Apri questo link (o inquadra il QR) e premi Abilita; l'installazione prosegue da sola:"
+        echo "  $LINK"
+        command -v qrencode >/dev/null && qrencode -t ansiutf8 "$LINK"
+        echo "(Per saltare questo passaggio premi Ctrl+C: potrai attivarlo dopo dalle Impostazioni.)"
+        SHOWN=1
+      fi
+      sleep 1
+    done
+    wait "$SERVE_PID" 2>/dev/null || true
+    trap - INT
+    rm -f "$OUT"
+  fi
+  NAME=$(tailscale status --json 2>/dev/null | python3 -c "import json,sys; print((json.load(sys.stdin).get('Self') or {}).get('DNSName','').rstrip('.'))" 2>/dev/null)
+  tailscale serve status --json 2>/dev/null | grep -q '"Web"' && [ -n "$NAME" ] && HTTPS_URL="https://$NAME"
+fi
+
 IP=$(tailscale ip -4 2>/dev/null | head -1)
 sleep 1
 if systemctl is-active --quiet minai-server.service; then
   say "Fatto."
-  echo "Apri  http://${IP:-$(hostname -I | awk '{print $1}')}:$PORT  da un dispositivo collegato a Tailscale."
+  if [ -n "$HTTPS_URL" ]; then
+    echo "Apri  $HTTPS_URL  da un dispositivo collegato a Tailscale."
+    echo "(funziona anche  http://${IP:-$(hostname -I | awk '{print $1}')}:$PORT )"
+  else
+    echo "Apri  http://${IP:-$(hostname -I | awk '{print $1}')}:$PORT  da un dispositivo collegato a Tailscale."
+  fi
   $SUDO python3 -c "import json,sys; sys.exit(0 if json.load(open('/opt/minai-server/config.json')).get('password') else 1)" \
     || echo "Al primo accesso scegli la password del pannello."
 else

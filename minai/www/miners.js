@@ -310,7 +310,9 @@ async function refreshLaunches() {
     ? "Nessun lancio ancora: su minai-server vai su Lanci → Avvia su… e scegli questo rig."
     : "Nessun lancio. Crea il primo con “Nuovo lancio”.";
   $("countLaunches").textContent = launches.length || "";
-  for (const { file, miner } of launches) {
+  // il lancio in uso sempre per primo, poi gli altri in ordine alfabetico
+  const sorted = [...launches].sort((a, b) => (b.file === active) - (a.file === active) || a.file.localeCompare(b.file));
+  for (const { file, miner } of sorted) {
     const isActive = file === active;
     const inUse = isActive && running;
     const label = document.createElement("span");

@@ -34,7 +34,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
-VERSION = "0.9.20"
+VERSION = "0.9.21"
 ROOT = os.environ.get("MINAI_SERVER_ROOT", "/opt/minai-server")
 CONF = f"{ROOT}/config.json"
 DB = f"{ROOT}/minai.db"
@@ -234,20 +234,21 @@ def poll_loop():
 
 # ---------- API ----------
 
-def public_rig(rig):
+def public_rig(rig, cat_hash=None):
     snap = SNAP.get(rig["id"], {})
     sy = SYNC.get(rig["id"])
-    if sy and sy.get("state") == "ok" and sy.get("hash") != catalog_hash():
+    if sy and sy.get("state") == "ok" and sy.get("hash") != (cat_hash or catalog_hash()):
         sy = {**sy, "state": "pending"}
     return {"id": rig["id"], "name": rig["name"], "address": rig["address"], **snap, "deploy": DEPLOY.get(rig["id"]),
             "sync": sy}
 
 
 def api_rigs(_):
-    server_exp, peers = ts_expiries() if shutil.which("tailscale") else (None, [])
+    server_exp, peers = ts_expiries_cached()
+    h = catalog_hash()
     out = []
     for r in all_rigs():
-        pr = public_rig(r)
+        pr = public_rig(r, h)
         pr["ts_expiry"] = rig_expiry(r, peers)
         out.append(pr)
     srv_latest, rig_latest = latest_with("minai-server.zip"), latest_with("minai.zip")
@@ -865,6 +866,18 @@ def ts_up(authkey):
     raise ApiError(504, "Tailscale non ha risposto")
 
 
+TS_CACHE = {"time": 0, "value": (None, [])}
+
+
+def ts_expiries_cached():
+    """Lo stato di Tailscale cambia di rado: si rilegge al massimo ogni 60 secondi."""
+    if not shutil.which("tailscale"):
+        return None, []
+    if time.time() - TS_CACHE["time"] > 60:
+        TS_CACHE.update(time=time.time(), value=ts_expiries())
+    return TS_CACHE["value"]
+
+
 def ts_expiries():
     """Scadenza della chiave Tailscale di questo server e dei rig: None se la scadenza è disattivata."""
     try:
@@ -893,8 +906,56 @@ def ts_logout():
     return {"ok": True}
 
 
+HTTPS_JOB = {"proc": None, "url": None}
+
+
+def https_state():
+    """Indirizzo sicuro servito da Tailscale (tailscale serve) verso la porta del pannello."""
+    if not shutil.which("tailscale"):
+        return {"available": False}
+    try:
+        st = json.loads(subprocess.run(["tailscale", "serve", "status", "--json"], capture_output=True,
+                                       text=True, timeout=10).stdout or "{}")
+        me = json.loads(subprocess.run(["tailscale", "status", "--json"], capture_output=True,
+                                       text=True, timeout=10).stdout or "{}").get("Self") or {}
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return {"available": False}
+    name = (me.get("DNSName") or "").rstrip(".")
+    on = bool(st.get("Web"))
+    p = HTTPS_JOB["proc"]
+    waiting = bool(p and p.poll() is None)
+    return {"available": True, "on": on, "url": f"https://{name}" if on and name else None,
+            "enable_url": HTTPS_JOB["url"] if waiting else None}
+
+
+def api_https(body):
+    if not shutil.which("tailscale"):
+        raise ApiError(400, "Tailscale non è installato")
+    if not body.get("on"):
+        subprocess.run(["tailscale", "serve", "reset"], capture_output=True, timeout=20)
+        return https_state()
+    p = HTTPS_JOB["proc"]
+    if not (p and p.poll() is None):
+        # se l'HTTPS non è ancora autorizzato sulla rete, tailscale stampa un link e aspetta la conferma
+        p = subprocess.Popen(["tailscale", "serve", "--bg", str(PORT)], stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, text=True)
+        HTTPS_JOB.update(proc=p, url=None)
+
+        def reader():
+            for line in p.stdout:
+                m = re.search(r"https://login\.tailscale\.com/\S+", line)
+                if m:
+                    HTTPS_JOB["url"] = m.group(0)
+        threading.Thread(target=reader, daemon=True).start()
+        threading.Timer(600, lambda: p.poll() is None and p.terminate()).start()
+    t0 = time.time()
+    while time.time() - t0 < 15 and p.poll() is None and not HTTPS_JOB["url"]:
+        time.sleep(0.3)
+    return https_state()
+
+
 def api_settings(_):
-    return {"tailscale": ts_status(), "host": socket.gethostname(), "version": VERSION}
+    return {"tailscale": ts_status(), "host": socket.gethostname(), "version": VERSION, "https": https_state()}
 
 
 def api_ts_up(body):
@@ -919,6 +980,7 @@ ROUTES = [
     ("POST", r"catalog/import/(\d+)", api_import),
     ("POST", r"deploy", api_deploy),
     ("POST", r"catalog/miners/([^/]+)/rename", api_miner_rename),
+    ("POST", r"https", api_https),
     ("POST", r"selfupdate", api_selfupdate),
     ("POST", r"selfcheck", api_selfcheck),
     ("POST", r"rigs/(\d+)/selfupdate", api_rig_selfupdate),

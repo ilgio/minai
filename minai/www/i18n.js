@@ -23,7 +23,12 @@ const EN = {
   // generale
   "Caricamento…": "Loading…", "Entra": "Log in", "Password": "Password", "Ripeti la password": "Repeat the password",
   "Salva e entra": "Save and log in", "Esci": "Log out", "Impostazioni": "Settings", "Menu": "Menu", "Sezioni": "Sections",
-  "Salva": "Save", "Annulla": "Cancel", "Carico il rig…": "Loading the rig…", "Carico…": "Loading…", "Altri rig": "Other rigs",
+  "Salva": "Save", "Annulla": "Cancel", "Carico i rig…": "Loading rigs…", "controllo…": "checking…", "1 aggiornamento": "1 update",
+  "Indirizzo sicuro (HTTPS)": "Secure address (HTTPS)", "Attivo: ": "On: ", "Attiva HTTPS": "Enable HTTPS", "Disattiva HTTPS": "Disable HTTPS",
+  "Non attivo: il browser mostra \"Non sicuro\" anche se il collegamento è già cifrato da Tailscale.":
+    "Off: the browser shows \"Not secure\" even though the connection is already encrypted by Tailscale.",
+  "Tailscale chiede di autorizzare l'indirizzo sicuro una volta sola:": "Tailscale asks you to authorize the secure address once:",
+  "autorizza su Tailscale": "authorize on Tailscale", ". Poi torna qui: si attiva da solo.": ". Then come back here: it turns on by itself.", "Carico il rig…": "Loading the rig…", "Carico…": "Loading…", "Altri rig": "Other rigs",
   "Gestiti da minai-server.": "Managed by minai-server.", "Apri sul server ›": "Open on the server ›",
   "Gestiti da minai-server: da qui puoi avviarli e fermarli.": "Managed by minai-server: from here you can start and stop them.", "Prova": "Try it", "Salva sul server": "Save on the server",
   "Salva come nuovo lancio": "Save as a new launch", "Scarta": "Discard", "Continua la prova": "Keep testing",
@@ -319,6 +324,7 @@ const EN_RX = [
   [/^  (.+): ok$/, (m, l) => `  ${trLabel(l)}: ok`],
   [/^  (.+): ERRORE (.+)$/, (m, l, e) => `  ${trLabel(l)}: ERROR ${e}`],
   [/^Errore (\d+)$/, "Error $1"],
+  [/^(\d+) aggiornamenti$/, "$1 updates"], [/^aggiornati · (.+)$/, "up to date · $1"], [/^Ultimo controllo (.+)$/, "Last check $1"],
   [/^Lancio di prova basato su «(.+)»: gira solo su questo rig\.$/, "Test launch based on «$1»: it runs on this rig only."],
   [/^Lancio «(.+)» del catalogo: modificalo e premi Prova\. La nuova versione gira solo su questo rig finché non decidi\.$/,
    "Catalog launch «$1»: edit it and press Try it. The new version runs on this rig only until you decide."],

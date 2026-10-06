@@ -77,7 +77,7 @@ apt install -y curl
 curl -fsSL https://github.com/ilgio/minai/releases/latest/download/get-server.sh | bash
 ```
 
-Compare un QR code: inquadralo con il telefono e accedi a Tailscale. Poi apri l'indirizzo che compare alla fine, per esempio `http://100.x.x.x:8090`, da un dispositivo collegato allo stesso account Tailscale, e scegli la password del pannello.
+Compare un QR code: inquadralo con il telefono e accedi a Tailscale. Un secondo QR può chiederti di autorizzare una volta l'**indirizzo sicuro** (HTTPS): tocca **Abilita**. Poi apri l'indirizzo che compare alla fine, per esempio `https://minai-server.tailXXXX.ts.net`, da un dispositivo collegato allo stesso account Tailscale, e scegli la password del pannello.
 
 > **Container Proxmox (LXC):** usa un container unprivileged con *nesting* attivo, e passagli `/dev/net/tun` (*Resources → Add → Device Passthrough*). Se manca, l'installer te lo dice.
 

@@ -347,3 +347,14 @@ button.dangerfill { background: var(--bad); border-color: var(--bad); color: #ff
 .managedbox.managednote[hidden] { display: none; }
 .managednote a { color: #5cc8fa; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .dot.gone { background: var(--muted); opacity: .5; }
+/* lanci compatti su telefono: nome e miner a sinistra, pulsanti a destra */
+@media (max-width: 700px) {
+  .launchlist tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: .6rem; row-gap: .1rem;
+                   padding: .55rem .75rem; margin-bottom: .45rem; }
+  .launchlist td { width: auto; padding: 0; border: 0; }
+  .launchlist td:nth-child(1) { grid-column: 1; grid-row: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .launchlist td:nth-child(2) { grid-column: 1; grid-row: 2; font-size: 12px; color: var(--muted); }
+  .launchlist td:nth-child(3) { grid-column: 2; grid-row: 1 / span 2; }
+  .launchlist td .actions { flex-wrap: nowrap; gap: .35rem; }
+  .launchlist td .actions button { padding: .35rem .6rem; font-size: 12px; }
+}

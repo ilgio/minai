@@ -46,6 +46,7 @@
     </form>
   </main>
 
+  <div id="bootLoader" class="boot"><img src="logo.svg" alt="" width="56" height="56"><span class="spin"></span><p>Carico i rig…</p></div>
   <div id="app" hidden>
     <div class="brandbar">
       <img src="logo.svg" alt="" width="30" height="30">
@@ -95,16 +96,15 @@
 
     <div id="tab-miner" role="tabpanel" class="tabpanel" hidden>
       <section>
-        <div class="head">
-          <h2>Miner</h2>
+        <div class="head compacthead">
+          <h2>Miner <span id="checkInfo" class="hinfo"></span></h2>
           <div class="actions">
-            <button id="btnCheck">Controlla aggiornamenti</button>
-            <button id="btnNewMiner" class="primary">Aggiungi miner</button>
+            <button id="btnCheck" class="hbtn" title="Controlla aggiornamenti"><svg><use href="#i-refresh"/></svg><span class="btxt">Controlla aggiornamenti</span></button>
+            <button id="btnNewMiner" class="primary hbtn" title="Aggiungi miner"><svg><use href="#i-plus"/></svg><span class="btxt">Aggiungi miner</span></button>
           </div>
         </div>
-        <p class="muted small">I miner del catalogo vengono installati e aggiornati da soli su tutti i rig.</p>
-        <p id="checkInfo" class="muted small"></p>
         <div id="minerForm" class="form card" hidden>
+          <p class="muted small">I miner del catalogo vengono installati e aggiornati da soli su tutti i rig.</p>
           <label>Nome <input id="minerName" placeholder="racer" spellcheck="false" autocapitalize="off"></label>
           <label>Link del pacchetto (.tar.gz, .zip o binario)
             <input id="minerUrl" placeholder="https://github.com/…/racer-0.9.5.tar.gz" spellcheck="false" autocapitalize="off">
@@ -121,9 +121,11 @@
 
     <div id="tab-lanci" role="tabpanel" class="tabpanel" hidden>
       <section>
-        <div class="head">
+        <div class="head compacthead">
           <h2>Lanci</h2>
-          <button id="btnNewLaunch" class="primary">Nuovo lancio</button>
+          <div class="actions">
+            <button id="btnNewLaunch" class="primary hbtn" title="Nuovo lancio"><svg><use href="#i-plus"/></svg><span class="btxt">Nuovo lancio</span></button>
+          </div>
         </div>
         <div id="launchForm" class="form card" hidden>
           <h3 id="launchTitle"></h3>
@@ -154,6 +156,12 @@
     <h2 id="setTitle">Impostazioni</h2>
     <h3>Lingua</h3>
     <div data-langpick></div>
+    <h3>Indirizzo sicuro (HTTPS)</h3>
+    <div id="httpsBox" class="small">
+      <p id="httpsState" class="muted"></p>
+      <p id="httpsAuth" hidden>Tailscale chiede di autorizzare l'indirizzo sicuro una volta sola: <a id="httpsAuthLink" target="_blank" rel="noopener">autorizza su Tailscale</a>. Poi torna qui: si attiva da solo.</p>
+      <button id="btnHttps">Attiva HTTPS</button>
+    </div>
     <h3>Tailscale</h3>
     <div id="tsState" class="tsstate"></div>
     <div id="tsConnect">

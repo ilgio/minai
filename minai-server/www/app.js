@@ -23,7 +23,7 @@ function showLogin(setup = false) {
   $("repeatRow").hidden = !setup;
   $("loginPassword").autocomplete = setup ? "new-password" : "current-password";
   $("btnLogin").textContent = setup ? "Salva e entra" : "Entra";
-  $("app").hidden = true; $("login").hidden = false; $("loginPassword").focus();
+  $("app").hidden = true; $("bootLoader").hidden = true; $("login").hidden = false; $("loginPassword").focus();
 }
 $("loginForm").addEventListener("submit", async ev => {
   ev.preventDefault();
@@ -322,8 +322,11 @@ async function refreshCatalog() {
   $("noMiners").hidden = cat.miners.length > 0;
   document.querySelector('[data-tab="miner"]').classList.toggle("has-upd", pending > 0);
   const when = cat.checked ? new Date(cat.checked * 1000).toLocaleString(LOCALE, { dateStyle: "short", timeStyle: "short" }) : "";
-  $("checkInfo").textContent = cat.checking ? "Controllo aggiornamenti in corso…"
-    : pending ? `Aggiornamenti disponibili: ${pending} · ultimo controllo ${when}` : when ? `Tutto aggiornato · ultimo controllo ${when}` : "";
+  const hhmm = cat.checked ? new Date(cat.checked * 1000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) : "";
+  $("checkInfo").textContent = cat.checking ? "controllo…"
+    : pending ? (pending === 1 ? "1 aggiornamento" : `${pending} aggiornamenti`) : hhmm ? `aggiornati · ${hhmm}` : "";
+  $("checkInfo").className = "hinfo" + (pending && !cat.checking ? " upd" : "");
+  $("checkInfo").title = when ? `Ultimo controllo ${when}` : "";
   $("btnCheck").disabled = cat.checking;
   if (cat.checking && !checkPoll) checkPoll = setInterval(() => refreshCatalog().catch(() => {}), 2000);
   if (!cat.checking && checkPoll) { clearInterval(checkPoll); checkPoll = null; }
@@ -460,8 +463,7 @@ try { startTab = localStorage.getItem("srv-tab") || startTab; } catch {}
 showTab($(`tab-${startTab}`) ? startTab : "rig");
 
 async function refreshAll() {
-  await refresh();
-  await refreshCatalog();
+  await Promise.all([refresh(), refreshCatalog()]);  // in parallelo: la pagina si apre prima
 }
 
 /* ---------- impostazioni: Tailscale ---------- */
@@ -491,8 +493,42 @@ function showTs(ts) {
     window.focus();
   }
 }
+let httpsPoll = null;
+function showHttps(h) {
+  const box = $("httpsBox");
+  if (!h || !h.available) { box.hidden = true; return; }
+  box.hidden = false;
+  $("httpsState").replaceChildren();
+  if (h.on && h.url) {
+    const a = Object.assign(document.createElement("a"), { href: h.url, textContent: h.url, target: "_blank", rel: "noopener" });
+    a.setAttribute("data-noi18n", "");
+    $("httpsState").append("Attivo: ", a);
+  } else {
+    $("httpsState").textContent = "Non attivo: il browser mostra \"Non sicuro\" anche se il collegamento è già cifrato da Tailscale.";
+  }
+  $("httpsAuth").hidden = !h.enable_url;
+  if (h.enable_url) $("httpsAuthLink").href = h.enable_url;
+  $("btnHttps").textContent = h.on ? "Disattiva HTTPS" : "Attiva HTTPS";
+  $("btnHttps").className = h.on ? "danger" : "primary";
+  $("btnHttps").dataset.on = h.on ? "1" : "";
+  if ((h.on || !h.enable_url) && httpsPoll) { clearInterval(httpsPoll); httpsPoll = null; }
+}
+$("btnHttps").addEventListener("click", async () => {
+  const turnOn = !$("btnHttps").dataset.on;
+  $("btnHttps").disabled = true;
+  try {
+    const h = await api("POST", "https", { on: turnOn });
+    showHttps(h);
+    if (h.enable_url && !httpsPoll) httpsPoll = setInterval(async () => {
+      try { showHttps((await api("GET", "settings")).https); } catch {}
+    }, 3000);
+  } catch (e) { msg("setMsg", e.message); }
+  $("btnHttps").disabled = false;
+});
+
 async function loadSettings() {
   const d = await api("GET", "settings");
+  showHttps(d.https);
   showTs(d.tailscale);
   if (typeof showLinkInfo === "function") showLinkInfo(d);
   return d;
@@ -593,7 +629,12 @@ async function start() {
     const a = await (await fetch("api/auth", { credentials: "same-origin" })).json();
     if (a.setup) { showLogin(true); return; }
   } catch {}
-  try { await refreshAll(); } catch (e) { if (e.message !== "Accesso richiesto") msg("error", e.message); return; }
+  try { await refreshAll(); } catch (e) {
+    $("bootLoader").hidden = true;
+    if (e.message !== "Accesso richiesto") { msg("error", e.message); $("app").hidden = false; }
+    return;
+  }
+  $("bootLoader").hidden = true;
   $("app").hidden = false;
   if (started) return;
   started = true;
