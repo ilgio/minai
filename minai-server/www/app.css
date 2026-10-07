@@ -263,3 +263,54 @@ button.dangerfill { background: var(--bad); border-color: var(--bad); color: #ff
   .hbtn .btxt { display: none; }
   .hbtn { padding: .45rem .55rem; }
 }
+
+/* ============ nuova grafica (0.9.22), come sui rig ============ */
+:root {
+  --bg: #0b0e14; --surface: #121722; --surface-2: #1a2130; --line: #232c3d;
+  --fg: #e8edf6; --muted: #7d889c; --ok: #3ee09a; --warn: #f5a623; --bad: #ff5d6c; --code: #070a10;
+  --accent: #f5a623; --blue: #5cc8fa; --cyan: #38d6e8; --radius: 14px;
+}
+html { background: var(--bg); }
+body { background: radial-gradient(1200px 500px at 20% -10%, #16244a 0, transparent 60%) var(--bg); background-attachment: fixed; }
+h2 { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+dialog h2 { text-transform: none; letter-spacing: 0; color: var(--fg); font-size: 1.05rem; }
+.host { font: 600 12px ui-monospace, Menlo, monospace; background: var(--surface); border: 1px solid var(--line); padding: .25rem .55rem; border-radius: 8px; }
+.top.hero { border-radius: 18px; padding: 1rem; background: linear-gradient(160deg, #131b2c, #0f1420); }
+.top.hero::before { content: ""; position: absolute; top: 0; right: 0; width: 260px; height: 100%; max-width: 100%; pointer-events: none;
+                    border-radius: 0 18px 18px 0; background: radial-gradient(circle at 80% 0, rgba(61, 123, 255, .22), transparent 70%); }
+.hero .menu { z-index: 5; } .menubtn { background: rgba(18, 23, 34, .8); }
+.hero .speeds { order: -1; flex: 1; width: auto; gap: .2rem 1.75rem; }
+.hero .summary { flex: none; width: 100%; order: 3; }
+.speed { display: flex; align-items: baseline; gap: .45rem; color: inherit; }
+.speed .num { font-weight: 800; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums;
+              background: linear-gradient(90deg, #5aa0ff, var(--cyan) 55%, #9cf0c4); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.speed small { font-weight: 700; color: var(--cyan); margin: 0; }
+.hero .speed .num { font-size: 3.4rem; letter-spacing: -2px; } .hero .speed small { font-size: 1.1rem; }
+.chip { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: .45rem .6rem; }
+.chip .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+.chip .v { font-size: 16px; font-weight: 700; }
+#sumPower { color: var(--warn); }
+/* schede dei rig */
+.rig { border-radius: 16px; background: linear-gradient(160deg, #131a29, #10151f); }
+.rig:hover { border-color: #33466b; }
+.rigtitle strong { font-size: 16px; font-weight: 700; }
+.rig .speed { margin: .5rem 0 0; } .rig .speed .num { font-size: 2.1rem; } .rig .speed small { font-size: .9rem; }
+.sparkwrap { margin: .15rem 0 .1rem; }
+.spark { display: block; width: 100%; height: 40px; stroke-width: 2; }
+.gpulist { gap: .3rem; margin-top: .6rem; }
+.gpurow { grid-template-columns: 1fr auto auto auto auto; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: .32rem .5rem; }
+.gname { color: var(--fg); display: flex; align-items: center; gap: .45rem; }
+.tag2 { font: 700 10px ui-monospace, Menlo, monospace; color: #06101f; padding: .08rem .38rem; border-radius: 5px; flex: none;
+        background: linear-gradient(135deg, #3d7bff, var(--cyan)); }
+.gpurow.off .tag2 { background: var(--line); color: var(--muted); }
+.gv.gs { color: var(--cyan); font-weight: 700; min-width: 0; }
+.item, .card, dialog { border-radius: 14px; }
+@media (max-width: 700px) {
+  .hero .speed .num { font-size: 2.9rem; }
+  .hero .speeds { order: 1; } .hero .menu { order: 2; }
+  .tabs { background: rgba(11, 14, 20, .93); }
+  .chip .v { font-size: 14.5px; }
+}
+.rig { padding-right: .95rem; } .righead { padding-right: 2rem; }
+.gpurow { gap: .55rem; } .gv { min-width: 2.4rem; }
+.foot { gap: .5rem 1.25rem; flex-wrap: wrap; align-items: center; }

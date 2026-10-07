@@ -50,6 +50,28 @@ function ago(ts) {
   return `visto ${new Date(ts * 1000).toLocaleString(LOCALE, { dateStyle: "short", timeStyle: "short" })}`;
 }
 
+// Grafico piccolo della velocità (ultimi 30 minuti), dai rig con minai 0.9.22 o successivo
+let sparkN = 0;
+function sparkSvg(h) {
+  const pts = (h || []).filter(v => v !== null);
+  if (pts.length < 3) return null;
+  const top = Math.max(...pts) * 1.08 || 1, n = Math.max(h.length - 1, 1);
+  let d = "", first = null, last = null, pen = false;
+  h.forEach((v, i) => {
+    if (v === null) { pen = false; return; }
+    const x = (i / n * 300).toFixed(1), y = (38 - v / top * 35).toFixed(1);
+    d += `${pen ? "L" : "M"}${x} ${y} `; pen = true;
+    if (first === null) first = x; last = x;
+  });
+  const id = `sf${++sparkN}`, area = d.includes("M", 1) ? "" : `<path d="${d}L${last} 40 L${first} 40 Z" fill="url(#${id})" stroke="none"/>`;
+  const box = el("div", "sparkwrap");
+  box.innerHTML = `<svg class="spark" viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><defs>
+    <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38d6e8" stop-opacity=".4"/><stop offset="1" stop-color="#38d6e8" stop-opacity="0"/></linearGradient>
+    <linearGradient id="${id}l" x1="0" y1="0" x2="300" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#5aa0ff"/><stop offset="1" stop-color="#9cf0c4"/></linearGradient></defs>
+    ${area}<path d="${d.trim()}" fill="none" stroke="url(#${id}l)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+  return box;
+}
+
 function rigCard(r) {
   const st = r.status || {};
   const sys = st.sys || {};
@@ -75,8 +97,10 @@ function rigCard(r) {
 
   if (running && st.speed && st.speed.value) {
     const sp = el("div", "speed");
-    sp.append(st.speed.value, el("small", "", st.speed.unit));
+    sp.append(el("span", "num", st.speed.value), el("small", "", st.speed.unit));
     card.append(sp);
+    const spark = sparkSvg(st.history);
+    if (spark) card.append(spark);
   }
 
   const rigVer = r.online && st.version;
@@ -113,7 +137,10 @@ function rigCard(r) {
       const g = el("div", "gpurow" + (en === "0" ? " off" : ""));
       if (en === "0") g.title = "GPU disattivata";
       const temp = Number(t);
-      g.append(el("span", "gname", `#${i} ${name.replace(/^NVIDIA GeForce /, "")}`),
+      const gn = el("span", "gname");
+      gn.append(el("span", "tag2", `GPU${i}`), name.replace(/^NVIDIA (GeForce )?/, ""));
+      const gsp = running && en !== "0" && st.per_gpu ? st.per_gpu[i] : null;
+      g.append(gn, el("span", "gv gs", gsp != null ? (gsp >= 10 ? gsp.toFixed(1) : gsp.toFixed(2)) : ""),
                el("span", "gv " + (temp >= 80 ? "hot" : temp >= 70 ? "warm" : ""), `${t}°C`),
                el("span", "gv", `${Math.round(p)} W`),
                el("span", "gv", `${fan}%`));
@@ -221,7 +248,7 @@ async function refresh() {
   }
   const sp = $("sumSpeeds");
   sp.replaceChildren(...Object.entries(byUnit).map(([u, v]) => {
-    const e = el("span", "speed"); e.append(v.toFixed(2), el("small", "", u)); return e;
+    const e = el("span", "speed"); e.append(el("span", "num", v >= 1000 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)), el("small", "", u)); return e;
   }));
   sp.hidden = !Object.keys(byUnit).length;
 }
