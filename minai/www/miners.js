@@ -120,18 +120,16 @@ async function refreshStatus() {
   setManaged(!!s.managed);
   $("startHint").hidden = !(s.managed && !s.active);
   $("driverVersion").textContent = s.driver ? `Driver NVIDIA ${s.driver}` : "";
-  if (s.speed && s.speed.value) {
-    const small = document.createElement("small");
-    small.textContent = s.speed.unit;
-    $("speed").replaceChildren(s.speed.value, small);
-    $("speed").hidden = !running;
-  }
+  showSpeed(s);
   const af = s.autofan || {};
   $("btnFan").classList.toggle("on", !!af.enabled);
   $("fanLabel").textContent = af.enabled ? `${af.target}°` : "";
   $("btnFan").title = (af.enabled ? `Autofan attivo, obiettivo ${af.target}°C` : "Autofan spento") + (af.event ? `\nUltimo intervento: ${af.event}` : "");
   const st = s.state || (running ? "running" : "stopped");
-  $("dot").className = "dot " + (st === "running" ? "on" : st === "failing" ? "fail" : "off");
+  const stCls = st === "running" ? "on" : st === "failing" ? "fail" : "off";
+  $("dot").className = "dot " + stCls;
+  $("pill").className = "pill " + stCls;
+  $("gpuNote").textContent = af.enabled ? `autofan ${af.target}°` : "";
   $("state").textContent = st === "running" ? "In esecuzione" : st === "failing" ? "In errore, riprovo…" : "Fermo";
   minerState = st;
   if (s.test) $("state").textContent += " · Lancio di prova";
@@ -142,6 +140,56 @@ async function refreshStatus() {
   $("speed").hidden = !running || !$("speed").textContent;
   showSys(s.sys || {});
 }
+
+// Numero grande, grafico degli ultimi 30 minuti, share ed efficienza
+const fmtNum = v => v >= 1000 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+function showSpeed(s) {
+  const sp = s.speed && s.speed.value ? s.speed : null;
+  gpuSpeed = sp ? { unit: sp.unit, values: s.per_gpu || {} } : { unit: "", values: {} };
+  if (sp) {
+    const num = document.createElement("span"), small = document.createElement("small");
+    num.className = "num"; num.textContent = sp.value; small.textContent = sp.unit;
+    $("speed").replaceChildren(num, small);
+  } else if (!s.running) $("speed").replaceChildren();
+  // grafico
+  const h = s.history || [], pts = h.filter(v => v !== null);
+  const showSpark = s.running && pts.length >= 3;
+  $("sparkBox").hidden = !showSpark;
+  if (showSpark) {
+    const max = Math.max(...pts), min = Math.min(...pts), top = max * 1.08 || 1;
+    const n = Math.max(h.length - 1, 1);
+    let d = "", first = null, last = null, pen = false;
+    h.forEach((v, i) => {
+      if (v === null) { pen = false; return; }
+      const x = (i / n * 300).toFixed(1), y = (60 - v / top * 56).toFixed(1);
+      d += `${pen ? "L" : "M"}${x} ${y} `; pen = true;
+      if (first === null) first = x; last = x;
+    });
+    $("sparkPath").setAttribute("d", d.trim());
+    // l'area sotto la curva: si chiude solo se la curva è continua
+    $("sparkArea").setAttribute("d", d.includes("M", 1) ? "" : `${d}L${last} 64 L${first} 64 Z`);
+    const mins = Math.max(1, Math.round(h.length * (s.history_step || 10) / 60));
+    $("sparkSpan").textContent = mins === 1 ? "ultimo minuto" : `ultimi ${mins} min`;
+    $("spMin").textContent = fmtNum(min);
+    $("spAvg").textContent = fmtNum(pts.reduce((a, b) => a + b, 0) / pts.length);
+    $("spMax").textContent = fmtNum(max);
+  }
+  // share ed efficienza
+  const sh = s.running ? s.shares : null;
+  $("chipAcc").hidden = $("chipRej").hidden = !sh;
+  if (sh) {
+    $("shAcc").textContent = sh.accepted; $("shRej").textContent = sh.rejected;
+    $("shRej").className = "v" + (sh.rejected > 0 ? " hot" : "");
+  }
+  const watt = (s.sys || {}).gpu_power, val = sp ? parseFloat(String(sp.value).replace(",", ".")) : NaN;
+  const eff = s.running && watt > 0 && val > 0 ? val / watt : null;
+  $("chipEff").hidden = eff === null;
+  if (eff !== null) {
+    $("effLabel").textContent = `${sp.unit}/W`;
+    $("effVal").textContent = eff >= 100 ? eff.toFixed(0) : eff >= 1 ? eff.toFixed(2) : eff.toPrecision(2);
+  }
+}
+let gpuSpeed = { unit: "", values: {} };
 
 function showSys(x) {
   const has = v => v !== null && v !== undefined;
@@ -331,7 +379,7 @@ async function refreshLaunches() {
 }
 
 async function activate(file) {
-  $("speed").textContent = ""; keySpeedSeen = false;
+  $("speed").textContent = "";
   try { await api("POST", `launches/${enc(file)}/start`); } catch (e) { showError(e); }
   refresh();
 }
@@ -384,47 +432,46 @@ async function removeLaunch(file) {
 
 /* ---------- log ---------- */
 // Converte i codici colore ANSI dei miner in span con classi CSS
+const ANSI16 = ["#8b949e", "#ff7b72", "#7ee787", "#e3b341", "#79c0ff", "#d2a8ff", "#56d4dd", "#c9d1d9"];
+function ansi256(n) {
+  if (n < 16) return ANSI16[n % 8];
+  if (n >= 232) { const g = 8 + (n - 232) * 10; return `rgb(${g},${g},${g})`; }
+  const v = i => (i ? 55 + i * 40 : 0); n -= 16;
+  return `rgb(${v(Math.floor(n / 36))},${v(Math.floor(n / 6) % 6)},${v(n % 6)})`;
+}
 function ansiToHtml(raw) {
   const esc = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const line = raw.split("\r").filter(Boolean).pop() || "";
   const clean = line.replace(/\x1b\[[0-9;?]*[A-Za-ln-z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "");
   const parts = clean.split(/\x1b\[([0-9;]*)m/);
-  let out = "", color = null, bold = false;
+  let out = "", color = null, bold = false, rgb = null, bg = null;
   for (let i = 0; i < parts.length; i++) {
     if (i % 2 === 0) {
       if (!parts[i]) continue;
-      const cls = [color !== null ? `c${color}` : "", bold ? "b" : ""].filter(Boolean).join(" ");
-      out += cls ? `<span class="${cls}">${esc(parts[i])}</span>` : esc(parts[i]);
+      const cls = [color !== null ? `c${color}` : "", bg !== null ? `bg${bg}` : "", bold ? "b" : ""].filter(Boolean).join(" ");
+      const sty = rgb ? ` style="color:${rgb}"` : "";
+      out += cls || sty ? `<span class="${cls}"${sty}>${esc(parts[i])}</span>` : esc(parts[i]);
     } else {
-      for (const c of (parts[i] || "0").split(";").map(Number)) {
-        if (c === 0) { color = null; bold = false; }
+      const codes = (parts[i] || "0").split(";").map(Number);
+      for (let k = 0; k < codes.length; k++) {
+        const c = codes[k];
+        if (c === 38 || c === 48) {  // 38;5;n (256 colori) e 38;2;r;g;b (RGB)
+          const n = codes[k + 1] === 5 ? 1 : codes[k + 1] === 2 ? 3 : 0, a = codes.slice(k + 2, k + 2 + n);
+          if (c === 38 && a.length === n && n) { rgb = n === 3 ? `rgb(${a.join(",")})` : ansi256(a[0]); color = null; }
+          k += 1 + n; continue;
+        }
+        if (c === 0) { color = null; bold = false; rgb = null; bg = null; }
+        else if ((c >= 40 && c <= 47) || (c >= 100 && c <= 107)) bg = c % 10;
+        else if (c === 49) bg = null;
         else if (c === 1) bold = true;
         else if (c === 22) bold = false;
-        else if (c >= 30 && c <= 37) color = c - 30;
-        else if (c >= 90 && c <= 97) color = c - 90;
-        else if (c === 39) color = null;
+        else if (c >= 30 && c <= 37) { color = c - 30; rgb = null; }
+        else if (c >= 90 && c <= 97) { color = c - 90 + 8; rgb = null; }
+        else if (c === 39) { color = null; rgb = null; }
       }
     }
   }
   return out;
-}
-
-// Velocità del miner letta dal log: preferisce le righe con "total"/"hashrate"/"speed"
-const SPEED_RE = /(\d+(?:[.,]\d+)?)\s*([kKMGTPE]?(?:H|Sol|N)\/s)\b/g;
-const SPEED_KEY = /total|hashrate|speed/i;
-let keySpeedSeen = false;
-function parseSpeed(raw) {
-  const line = raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
-  const found = [...line.matchAll(SPEED_RE)];
-  if (!found.length) return;
-  const isKey = SPEED_KEY.test(line);
-  if (!isKey && keySpeedSeen) return;
-  if (isKey) keySpeedSeen = true;
-  const [, value, unit] = found[found.length - 1];
-  const small = document.createElement("small");
-  small.textContent = unit;
-  $("speed").replaceChildren(value, small);
-  $("speed").hidden = !running;
 }
 
 const logLines = [];
@@ -437,7 +484,6 @@ async function pollLog() {
     logCursor = d.cursor || logCursor;
     const fresh = d.lines.flatMap(l => l.split("\n")).filter(l => l.trim());
     if (fresh.length) {
-      fresh.forEach(parseSpeed);
       logLines.push(...fresh);
       if (logLines.length > 500) logLines.splice(0, logLines.length - 500);
       const pre = $("log");
@@ -450,31 +496,29 @@ async function pollLog() {
 
 /* ---------- GPU e overclock ---------- */
 const gpuOpen = new Set((() => { try { return JSON.parse(localStorage.getItem("gpu-open") || "[]"); } catch { return []; } })());
+const gpuPeak = {};
 async function gpus() {
   let list = [];
   try { list = (await api("GET", "gpus")).gpus; } catch { return; }
   const box = $("gpus");
   box.replaceChildren();
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-  for (const [i, name, t, p, u, sm, mem, fan, en] of list) {
+  for (const [i, name, t, p, u, sm, mem, fan, en, lim] of list) {
     const on = en !== "0";
     const open = gpuOpen.has(i);
     const temp = Number(t);
     const card = el("article", "gpu" + (on ? "" : " off") + (open ? " open" : ""));
-    // riga compatta: si tocca per aprire i dettagli
+    // testata: si tocca per aprire i dettagli
     const head = el("button", "gpu-head");
     head.setAttribute("aria-expanded", String(open));
     const title = el("div", "gpu-name");
-    title.append(el("span", "", `#${i}`), el("b", "full", name),
+    title.append(el("span", "tag", `GPU${i}`), el("b", "full", name),
                  el("b", "short", name.replace(/^NVIDIA (GeForce )?/, "")));
     title.title = name;
     const sum = el("span", "gpu-sum");
-    if (on) {
-      sum.append(el("span", temp >= 80 ? "hot" : temp >= 70 ? "warm" : "", `${t}°C`),
-                 el("span", "", `${Math.round(p)} W`), el("span", "", `${fan}%`));
-    } else {
-      sum.append(el("span", "", "Disattivata"));
-    }
+    const gs = gpuSpeed.values[i];
+    if (!on) sum.append(el("span", "", "Disattivata"));
+    else if (gs != null) { sum.classList.add("rate"); sum.append(el("b", "", fmtNum(gs)), el("small", "", gpuSpeed.unit)); }
     const chev = el("span", "chev");
     chev.innerHTML = '<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>';
     head.append(title, sum, chev);
@@ -483,6 +527,22 @@ async function gpus() {
       try { localStorage.setItem("gpu-open", JSON.stringify([...gpuOpen])); } catch {}
       card.classList.toggle("open"); head.setAttribute("aria-expanded", String(gpuOpen.has(i)));
     });
+    // tre barre sempre visibili: temperatura, ventola, potenza
+    const watt = Math.round(p), limit = Number(lim);
+    if (watt > (gpuPeak[i] || 0)) gpuPeak[i] = watt;
+    const wattMax = limit > 0 ? limit : Math.max(gpuPeak[i] || 0, 1);
+    const bars = el("div", "bars");
+    for (const [k, v, cls, pct] of [
+      ["Temp", `${t}°C`, "t" + (temp >= 80 ? " hot" : temp >= 70 ? " warm" : ""), temp],
+      ["Ventola", `${fan}%`, "f", Number(fan)],
+      ["Potenza", `${watt} W`, "p", watt / wattMax * 100],
+    ]) {
+      const b = el("div", "gbar " + cls), lab = el("span", "lab");
+      lab.append(el("span", "", k), el("b", "", v));
+      const bar = el("div", "bar"), fill = el("i");
+      fill.style.width = `${Math.max(0, Math.min(100, pct || 0))}%`;
+      bar.append(fill); b.append(lab, bar); bars.append(b);
+    }
     // dettagli
     const body = el("div", "gpu-body");
     const b = button("OC", () => openOc(i, name), "iconbtn");
@@ -492,26 +552,14 @@ async function gpus() {
     sw.setAttribute("aria-pressed", String(on));
     const tools = el("div", "gpu-tools");
     tools.append(sw, b);
-    const stats = el("div", "stats");
-    for (const [k, v, cls, pct] of [
-      ["Temp", `${t}°C`, temp >= 80 ? "hot" : temp >= 70 ? "warm" : ""],
-      ["Potenza", `${Math.round(p)} W`],
-      ["Uso", `${u}%`, "", Number(u)],
-      ["Core", `${sm} MHz`],
-      ["Memoria", `${mem} MHz`],
-      ["Ventola", `${fan}%`, "", Number(fan)],
-    ]) {
-      const st = el("div", "stat");
-      st.append(el("span", "k", k), el("span", `v ${cls || ""}`.trim(), v));
-      if (pct != null && !Number.isNaN(pct)) {
-        const bar = el("div", "bar"), fill = el("i");
-        fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-        bar.append(fill); st.append(bar);
-      }
-      stats.append(st);
+    const more = el("div", "gpu-more");
+    const eff = gs != null && watt > 0 ? gs / watt : null;
+    for (const [k, v] of [["Uso", `${u}%`], ["Core", `${sm} MHz`], ["Memoria", `${mem} MHz`],
+                          ...(eff !== null ? [[`${gpuSpeed.unit}/W`, eff >= 1 ? eff.toFixed(2) : eff.toPrecision(2)]] : [])]) {
+      const m = el("span"); m.append(el("span", "", k), " ", el("b", "", v)); more.append(m);
     }
-    body.append(tools, stats);
-    card.append(head, body);
+    body.append(more, tools);
+    card.append(head, bars, body);
     box.append(card);
   }
   $("gpuSection").hidden = list.length === 0;

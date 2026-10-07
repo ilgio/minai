@@ -77,6 +77,7 @@ const EN = {
 
   // stato e intestazione
   "In esecuzione": "Running", "Fermo": "Stopped", "nessun lancio attivo": "no active launch", "fermo": "stopped",
+  "Share": "Shares", "Rifiutate": "Rejected", "Efficienza": "Efficiency", "media": "avg", "ultimo minuto": "last minute",
   "Temp CPU": "CPU temp", "Carico CPU": "CPU load", "Consumo": "Power", "Consumo totale": "Total power", "Consumo GPU": "GPU power",
   "Ferma miner": "Stop miner", "Autofan": "Autofan", "Autofan spento": "Autofan off", "in uso": "in use", "offline": "offline",
 
@@ -245,6 +246,7 @@ const EN_RX = [
   [/^Autofan attivo, obiettivo (.+)°C$/, "Autofan on, target $1°C"],
   [/^Ultimo intervento: (.+)$/, (m, e) => `Last action: ${trOne(e)}`],
   [/^GPU (\S+) W \+ CPU (\S+) W \(senza il resto del PC\)$/, "GPU $1 W + CPU $2 W (excluding the rest of the PC)"],
+  [/^ultimi (\d+) min$/, "last $1 min"],
   [/^Aggiorna a (.+)$/, "Update to $1"],
   [/^nuova (.+)$/, "new $1"],
   [/^C'è un aggiornamento disponibile · ultimo controllo (.+)$/, "An update is available · last check $1"],

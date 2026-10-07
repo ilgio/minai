@@ -5,7 +5,7 @@
   <title>minai</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#13161b">
+  <meta name="theme-color" content="#0b0e14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="minai">
@@ -67,13 +67,10 @@
       <button id="btnSelfUpdate" class="newver" hidden></button>
       <span id="hostName" class="host"></span>
     </div>
-    <header class="top">
+    <header class="top hero">
       <div class="rig">
-        <span id="dot" class="dot"></span>
-        <div class="rigtext">
-          <div class="rigline"><strong id="state">Caricamento…</strong><span id="activeName" class="muted"></span></div>
-          <div id="speed" class="speed" hidden></div>
-        </div>
+        <span id="pill" class="pill off"><span id="dot" class="dot"></span><strong id="state">Caricamento…</strong></span>
+        <span id="activeName" class="lname"></span>
       </div>
       <div class="menu">
         <button id="btnFan" class="iconbtn fanbtn" aria-label="Autofan"><svg><use href="#i-fan"/></svg><span id="fanLabel"></span></button>
@@ -88,10 +85,25 @@
           <button id="btnLogout" role="menuitem"><svg><use href="#i-exit"/></svg>Esci</button>
         </div>
       </div>
+      <div id="speed" class="speed" hidden></div>
+      <div id="sparkBox" class="sparkbox" hidden>
+        <svg id="spark" class="spark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38d6e8" stop-opacity=".45"/><stop offset="1" stop-color="#38d6e8" stop-opacity="0"/></linearGradient>
+            <linearGradient id="sparkLine" x1="0" y1="0" x2="300" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#5aa0ff"/><stop offset="1" stop-color="#9cf0c4"/></linearGradient>
+          </defs>
+          <path id="sparkArea" fill="url(#sparkFill)" stroke="none"/>
+          <path id="sparkPath" fill="none" stroke="url(#sparkLine)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <div class="mm"><span id="sparkSpan">ultimi 30 min</span><span><i>min</i> <b id="spMin">–</b></span><span><i>media</i> <b id="spAvg">–</b></span><span class="mx"><i>max</i> <b id="spMax">–</b></span></div>
+      </div>
       <div class="sysline" id="sysline" hidden>
+        <div class="chip" id="chipAcc" hidden><span class="k">Share</span><span class="v g" id="shAcc">–</span></div>
+        <div class="chip" id="chipRej" hidden><span class="k">Rifiutate</span><span class="v" id="shRej">–</span></div>
+        <div class="chip"><span class="k" id="sysPowerLabel">Consumo</span><span class="v a" id="sysPower">–</span></div>
+        <div class="chip" id="chipEff" hidden><span class="k" id="effLabel">Efficienza</span><span class="v" id="effVal">–</span></div>
         <div class="chip"><span class="k">Temp CPU</span><span class="v" id="sysCpuTemp">–</span></div>
         <div class="chip"><span class="k">Carico CPU</span><span class="v" id="sysCpuLoad">–</span></div>
-        <div class="chip"><span class="k" id="sysPowerLabel">Consumo</span><span class="v" id="sysPower">–</span></div>
       </div>
     </header>
 
@@ -111,7 +123,7 @@
         <a class="button primary gotoServer" hidden>Vai ai lanci sul server</a>
       </div>
       <section id="gpuSection" hidden>
-        <h2>GPU</h2>
+        <div class="head"><h2>GPU</h2><span id="gpuNote" class="secnote"></span></div>
         <div id="gpus" class="gpus"></div>
       </section>
       <section>

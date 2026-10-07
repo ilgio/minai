@@ -16,6 +16,7 @@ import getpass
 import glob
 import hashlib
 import hmac
+import collections
 import json
 import os
 import re
@@ -30,7 +31,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "0.9.21"
+VERSION = "0.9.22"
 ROOT = os.environ.get("MINERS_ROOT", "/opt/miners")
 CONF = f"{ROOT}/panel.json"
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
@@ -580,37 +581,66 @@ def nvidia_driver():
 
 
 # qualsiasi unità prima di "/s" (H/s, kH/s, Sol/s, N/s, FW/s…), ma non le velocità di download
-SPEED_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([A-Za-z]{1,6}/s)(?![A-Za-z])")
+# né le unità composte come "FW/s/W" (efficienza)
+SPEED_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([A-Za-z]{1,6}/s)(?![A-Za-z/])")
 NOT_SPEED = re.compile(r"^(?:[kKMGTP]i?)?(?:B|b|bit|bps)/s$|^it/s$")
 SPEED_KEY = re.compile(r"total|hashrate|speed", re.I)
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 SPEED = {"value": None, "unit": None, "key": False}
-PER_GPU = {}   # miner che scrivono una riga per GPU: indice -> (valore, unità, ora)
+PER_GPU = {}   # indice GPU -> (valore, unità, ora)
 GPU_IN_LINE = re.compile(r"\bGPU\s*#?\s*(\d+)\b", re.I)
-TOTAL_IN_LINE = re.compile(r"\btotal", re.I)
+GPU_VALUE = re.compile(r"\bGPU\s*#?\s*(\d+)\s*[:=]?\s+(\d+(?:[.,]\d+)?)(?![\d.,]*\s*(?:°|W\b|MHz|%))", re.I)
+TOTAL_IN_LINE = re.compile(r"\btotal|\[stats\]", re.I)
+SHARES = {"accepted": None, "rejected": None, "counted": True}
+SHARE_NUM = {k: re.compile(rf"\b{k}\b\s*[:=]?\s*(\d+)\b(?!\s*(?:ms|s\b|%))", re.I) for k in ("accepted", "rejected")}
+SHARE_WORD = {k: re.compile(rf"\b{k}\b", re.I) for k in ("accepted", "rejected")}
+HISTORY = collections.deque(maxlen=180)   # un campione ogni 10 s: ultimi 30 minuti
+HIST_STEP = 10
 
 
 def reset_speed():
     SPEED.update(value=None, unit=None, key=False, total=False, time=0)
     PER_GPU.clear()
+    SHARES.update(accepted=None, rejected=None, counted=True)
+
+
+def parse_shares(line):
+    nums = {k: rx.search(line) for k, rx in SHARE_NUM.items()}
+    if nums["accepted"]:  # il miner scrive i contatori: valgono quelli
+        SHARES.update(accepted=int(nums["accepted"].group(1)), counted=False)
+        if nums["rejected"]:
+            SHARES["rejected"] = int(nums["rejected"].group(1))
+        return
+    if not SHARES["counted"] or not re.search(r"share", line, re.I):
+        return
+    for k, rx in SHARE_WORD.items():  # altrimenti si contano le righe "share accepted"
+        if rx.search(line):
+            SHARES[k] = (SHARES[k] or 0) + 1
+            SHARES.setdefault("rejected", 0)
+            return
 
 
 def parse_speed(line):
     line = ANSI_RE.sub("", line)
+    parse_shares(line)
     found = [f for f in SPEED_RE.findall(line) if not NOT_SPEED.match(f[1])]
     if not found:
         return
-    value, unit = found[-1]
     now = time.time()
-    if TOTAL_IN_LINE.search(line):  # il miner scrive già il totale: vale quello
+    tags = GPU_IN_LINE.findall(line)
+    if TOTAL_IN_LINE.search(line) or len(set(tags)) > 1:
+        # riga riassuntiva: il totale è la prima velocità, poi (se ci sono) i valori di ogni GPU
+        value, unit = found[0] if len(set(tags)) > 1 else found[-1]
         SPEED.update(value=value, unit=unit, key=True, total=True, time=now)
+        for idx, v in GPU_VALUE.findall(line):
+            PER_GPU[int(idx)] = (float(v.replace(",", ".")), unit, now)
         return
-    gpu = GPU_IN_LINE.search(line)
-    if gpu:
+    value, unit = found[-1]
+    if tags:
+        # una riga per GPU: si somma l'ultimo valore di ogni scheda (degli ultimi 2 minuti)
+        PER_GPU[int(tags[0])] = (float(value.replace(",", ".")), unit, now)
         if SPEED.get("total") and now - SPEED.get("time", 0) < 120:
             return
-        # una riga per GPU: si somma l'ultimo valore di ogni scheda (degli ultimi 2 minuti)
-        PER_GPU[int(gpu.group(1))] = (float(value.replace(",", ".")), unit, now)
         fresh = [v for v, u, t in PER_GPU.values() if u == unit and now - t < 120]
         SPEED.update(value=f"{sum(fresh):.2f}", unit=unit, key=True, total=False, time=now)
         return
@@ -618,6 +648,33 @@ def parse_speed(line):
     if not is_key and SPEED["key"]:
         return
     SPEED.update(value=value, unit=unit, key=SPEED["key"] or is_key, time=now)
+
+
+def speed_now():
+    """Velocità attuale come numero, None se il miner è fermo o non la scrive da 5 minuti."""
+    if not SPEED.get("value") or time.time() - SPEED.get("time", 0) > 300:
+        return None
+    try:
+        return float(str(SPEED["value"]).replace(",", "."))
+    except ValueError:
+        return None
+
+
+def history_sampler():
+    while True:
+        try:
+            HISTORY.append(round(speed_now(), 2) if speed_now() is not None and is_running() else None)
+        except Exception:
+            HISTORY.append(None)
+        time.sleep(HIST_STEP)
+
+
+def speed_extra():
+    now = time.time()
+    unit = SPEED.get("unit")
+    return {"per_gpu": {str(i): v for i, (v, u, t) in sorted(PER_GPU.items()) if u == unit and now - t < 120},
+            "shares": {"accepted": SHARES["accepted"], "rejected": SHARES["rejected"] or 0} if SHARES["accepted"] is not None else None,
+            "history": list(HISTORY), "history_step": HIST_STEP}
 
 
 def speed_follower():
@@ -641,6 +698,7 @@ def api_status(_):
             "host": socket.gethostname(), "sys": dict(SYS),
             "version": VERSION, "driver": nvidia_driver(),
             "speed": {"value": SPEED["value"], "unit": SPEED["unit"]} if SPEED["value"] else None,
+            **speed_extra(),
             "update": latest_with("minai.zip") if newer(latest_with("minai.zip"), VERSION) else None,
             "updating": unit_active("minai-selfupdate"),
             "managed": managed(),
@@ -819,14 +877,16 @@ def api_log(query):
 def api_gpus(_):
     try:
         out = run(["nvidia-smi",
-                   "--query-gpu=index,name,temperature.gpu,power.draw,utilization.gpu,clocks.sm,clocks.mem,fan.speed",
+                   "--query-gpu=index,name,temperature.gpu,power.draw,utilization.gpu,clocks.sm,clocks.mem,fan.speed,power.limit",
                    "--format=csv,noheader,nounits"], timeout=15)
     except ApiError:
         return {"gpus": []}
     off = gpus_disabled()
     rows = [[c.strip() for c in l.split(",")] for l in out.strip().splitlines() if l.strip()]
-    for r in rows:  # ultimo campo: "1" GPU attiva, "0" disattivata dal pannello
+    for r in rows:  # in coda: "1" GPU attiva / "0" disattivata dal pannello, poi il limite di potenza in W
+        limit = r.pop() if len(r) > 8 else ""
         r.append("0" if r and r[0].isdigit() and int(r[0]) in off else "1")
+        r.append(limit)
     return {"gpus": rows}
 
 
@@ -1349,6 +1409,7 @@ if __name__ == "__main__":
     threading.Thread(target=update_loop, daemon=True).start()
     threading.Thread(target=sys_sampler, daemon=True).start()
     threading.Thread(target=speed_follower, daemon=True).start()
+    threading.Thread(target=history_sampler, daemon=True).start()
     threading.Thread(target=setup_beacon, daemon=True).start()
     threading.Thread(target=test_watchdog, daemon=True).start()
     if not needs_setup():
