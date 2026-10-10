@@ -35,7 +35,7 @@ Then put both links in the release notes.
 
 | File | Purpose |
 |---|---|
-| `autoinstall.yaml` | Unattended Ubuntu install: largest disk, user `user`, NVIDIA-ready HWE kernel. |
+| `autoinstall.yaml` | Unattended Ubuntu install: largest disk, user `user`, installs offline too; the HWE kernel is added at first boot. |
 | `firstboot.sh`, `minai-firstboot.service` | First boot: rig name, NVIDIA driver, minai, Tailscale, reboot. |
 | `screen.sh`, `install-progress.sh` | Full-screen progress with the minai logo on the rig's monitor. |
 | `make-issue.sh` | Console welcome screen with the logo and the setup address. |

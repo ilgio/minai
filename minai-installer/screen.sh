@@ -2,6 +2,8 @@
 # Si usa con:  . screen.sh ; minai_screen "Titolo" PERCENTUALE "Dettaglio" INIZIO_EPOCH "Nota"
 MINAI_TTY="${MINAI_TTY:-/dev/tty2}"
 
+minai_now() { cut -d. -f1 /proc/uptime; }   # secondi dall'accensione: non salta se l'orologio viene corretto
+
 _minai_row() {  # disegna una riga del logo: lettere fatte di "pixel" colorati (spazi con sfondo)
   local line="$1" color="$2" out="" i c
   for ((i = 0; i < ${#line}; i++)); do
@@ -37,7 +39,7 @@ minai_bar() {  # barra di 40 caselle
 minai_screen() {
   local title="$1" p="$2" detail="$3" start="$4" note="$5" mins
   [ "$p" -gt 100 ] 2>/dev/null && p=100
-  mins=$(( ($(date +%s) - start) / 60 ))
+  mins=$(( ($(minai_now) - start) / 60 )); [ "$mins" -lt 0 ] && mins=0
   {
     printf '\033[2J\033[H\033[?25l\n\n'
     minai_logo

@@ -7,15 +7,15 @@ echo "=== $(date) prima configurazione"
 
 # schermata fissa per chi ha un monitor: logo, passo, barra e tempo (console 2)
 . /usr/local/lib/minai/screen.sh
-START=$(date +%s)
-step() { echo "$1|$2|$3|$(date +%s)" > /run/minai-step; }   # da% | fino a% | testo
+START=$(minai_now)
+step() { echo "$1|$2|$3|$(minai_now)" > /run/minai-step; }   # da% | fino a% | testo
 screen_loop() {
   local B C T S P title MINAI_TITLE_EN
   while true; do
     IFS='|' read -r B C T S < /run/minai-step 2>/dev/null || { sleep 2; continue; }
     title="Configurazione del rig  -  passo 2 di 2"; MINAI_TITLE_EN="Setting up the rig  -  step 2 of 2"
     if [ "$B" = "E" ]; then P=0; title="Si e' verificato un problema"; MINAI_TITLE_EN="Something went wrong"
-    else P=$(( B + ($(date +%s) - S) / 6 )); [ "$P" -gt "$C" ] && P=$C; fi
+    else P=$(( B + ($(minai_now) - S) / 6 )); [ "$P" -gt "$C" ] && P=$C; fi
     minai_screen "$title" "$P" "$T" "$START" "Poi si riavvia da solo / Then it restarts by itself."
     minai_show
     sleep 3
@@ -39,6 +39,19 @@ until curl -fsS -o /dev/null https://github.com; do sleep 5; done
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
+
+# kernel HWE (supporta l'hardware più recente): si installa qui, con la rete pronta, poi un riavvio
+# e il resto della configurazione continua con il kernel nuovo. Se non riesce si va avanti con quello attuale.
+if ! dpkg -s linux-generic-hwe-24.04 >/dev/null 2>&1 && [ ! -f /var/lib/minai-hwe.tried ]; then
+  step 10 10 "Kernel aggiornato, poi riavvio  /  Updated kernel, then restart"
+  touch /var/lib/minai-hwe.tried
+  if apt-get install -y -q linux-generic-hwe-24.04; then
+    echo "kernel HWE installato, riavvio"
+    systemctl --no-block reboot
+    exit 0
+  fi
+  echo "kernel HWE non installato: continuo con il kernel attuale"
+fi
 
 step 10 70 "Driver NVIDIA (la parte piu' lunga)  /  NVIDIA driver (the longest part)"
 if lspci | grep -qi nvidia && ! command -v nvidia-smi >/dev/null; then

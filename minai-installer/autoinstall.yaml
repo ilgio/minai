@@ -14,8 +14,13 @@ autoinstall:
     password: "$6$minairig$MoRcOqSvuIkxPeDpjqMwqrnFVeKbizhd8ClZrL9fHk.SeahqbdRlBy9aNlSROAscCMPNZk6XGCL1ZO9QHcnMj1"
   ssh:
     install-server: false
-  kernel:
-    flavor: hwe
+  # kernel: quello della chiavetta (c'è sempre, anche senza internet); l'HWE lo installa il primo avvio
+  apt:
+    geoip: false
+    fallback: offline-install
+    primary:
+      - arches: [default]
+        uri: http://archive.ubuntu.com/ubuntu
   storage:
     layout:
       name: direct
@@ -31,6 +36,8 @@ autoinstall:
   early-commands:
     # schermata fissa con logo e avanzamento al posto delle scritte dell'installatore
     - setsid -f bash /cdrom/minai/install-progress.sh >/dev/null 2>&1 </dev/null
+    # alcune schede di rete sono lente a collegarsi: si aspetta internet fino a 90 secondi
+    - for i in $(seq 1 30); do curl -fsI -m 3 http://archive.ubuntu.com/ubuntu/ >/dev/null 2>&1 && break; sleep 3; done; true
   late-commands:
     - touch /run/minai-late
     - mkdir -p /target/usr/local/lib/minai
