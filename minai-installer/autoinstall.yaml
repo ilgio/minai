@@ -14,7 +14,10 @@ autoinstall:
     password: "$6$minairig$MoRcOqSvuIkxPeDpjqMwqrnFVeKbizhd8ClZrL9fHk.SeahqbdRlBy9aNlSROAscCMPNZk6XGCL1ZO9QHcnMj1"
   ssh:
     install-server: false
-  # kernel: quello della chiavetta (c'è sempre, anche senza internet); l'HWE lo installa il primo avvio
+  # kernel: quello presente sulla chiavetta (linux-generic), così si installa anche senza internet.
+  # Senza questa riga Ubuntu sceglie l'HWE, che sulla chiavetta non c'è. L'HWE lo installa il primo avvio.
+  kernel:
+    package: linux-generic
   apt:
     geoip: false
     fallback: offline-install

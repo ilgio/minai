@@ -618,6 +618,73 @@ function openTerm(reload) {
   }, 120);
 }
 
+/* ---------- tasti, copia e incolla del terminale (utili soprattutto su iPhone) ---------- */
+const TERM_KEYS = { esc: "\x1b", tab: "\t", up: "\x1b[A", down: "\x1b[B", right: "\x1b[C", left: "\x1b[D",
+                    c: "\x03", d: "\x04", z: "\x1a" };
+function termObj() { try { return $("termFrame").contentWindow.term || null; } catch { return null; } }
+function termSend(data) {
+  const t = termObj();
+  if (!t) return;
+  // come se fosse scritto sulla tastiera (senza le sequenze di "incolla" che bash aggiunge)
+  if (typeof t.input === "function") t.input(data, true);
+  else if (t._core && t._core.coreService) t._core.coreService.triggerDataEvent(data, true);
+  else t.paste(data);
+  t.focus();
+}
+function termText() {
+  const t = termObj();
+  if (!t) return "";
+  const sel = t.getSelection && t.getSelection();
+  if (sel) return sel;
+  // niente selezione: le righe visibili
+  const b = t.buffer.active, out = [];
+  for (let y = b.viewportY; y < b.viewportY + t.rows; y++) { const l = b.getLine(y); if (l) out.push(l.translateToString(true)); }
+  return out.join("\n").replace(/\n+$/, "");
+}
+let clipMode = "paste";
+function openClip(mode) {
+  clipMode = mode;
+  const txt = $("clipText");
+  if (mode === "paste") {
+    $("clipTitle").textContent = "Incolla nel terminale";
+    $("clipNote").textContent = "Tieni premuto nel riquadro e scegli Incolla, poi Invia.";
+    $("btnClipOk").textContent = "Invia";
+    txt.readOnly = false; txt.value = "";
+  } else {
+    $("clipTitle").textContent = "Copia dal terminale";
+    $("clipNote").textContent = "La selezione, o le righe visibili se non hai selezionato niente. Puoi anche selezionarne solo una parte qui.";
+    $("btnClipOk").textContent = "Copia";
+    txt.readOnly = true; txt.value = termText();
+  }
+  $("clipDialog").showModal();
+  if (mode === "paste") txt.focus(); else { txt.focus(); txt.select(); }
+}
+async function clipOk() {
+  const txt = $("clipText");
+  if (clipMode === "paste") {
+    if (txt.value) termSend(txt.value.replace(/\r?\n/g, "\r"));
+    $("clipDialog").close();
+    return;
+  }
+  const part = txt.value.substring(txt.selectionStart, txt.selectionEnd) || txt.value;
+  try { await navigator.clipboard.writeText(part); $("clipDialog").close(); }
+  catch {  // senza HTTPS il browser non lascia scrivere negli appunti: si usa la copia classica
+    txt.focus(); txt.select();
+    $("clipNote").textContent = document.execCommand && document.execCommand("copy")
+      ? "Copiato." : "Il testo è selezionato: tieni premuto e scegli Copia.";
+  }
+}
+for (const b of document.querySelectorAll("#termKeys button")) {
+  // pointerdown + preventDefault: il terminale resta attivo e la tastiera dell'iPhone non si chiude
+  b.addEventListener("pointerdown", e => e.preventDefault());
+  b.addEventListener("click", () => {
+    const k = b.dataset.k;
+    if (k === "paste" || k === "copy") openClip(k); else termSend(TERM_KEYS[k]);
+  });
+}
+$("btnClipOk").addEventListener("click", clipOk);
+$("btnClipClose").addEventListener("click", () => $("clipDialog").close());
+
 /* ---------- spegnimento e riavvio ---------- */
 async function power(action) {
   const what = action === "reboot" ? "riavviare" : "spegnere";
@@ -644,6 +711,7 @@ function showTab(name) {
     $(`tab-${t.dataset.tab}`).hidden = !on;
   }
   if (name === "generale") $("log").scrollTop = $("log").scrollHeight;
+  document.body.classList.toggle("tab-term", name === "terminale");
   if (name === "terminale") openTerm(false);
   try { localStorage.setItem("miners-tab", name); } catch {}
 }

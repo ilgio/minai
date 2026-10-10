@@ -77,6 +77,11 @@ const EN = {
 
   // stato e intestazione
   "In esecuzione": "Running", "Fermo": "Stopped", "nessun lancio attivo": "no active launch", "fermo": "stopped",
+  "Incolla": "Paste", "Copia": "Copy", "Invia": "Send", "Incolla nel terminale": "Paste into the terminal", "Copia dal terminale": "Copy from the terminal",
+  "Tieni premuto nel riquadro e scegli Incolla, poi Invia.": "Long-press in the box and choose Paste, then Send.",
+  "La selezione, o le righe visibili se non hai selezionato niente. Puoi anche selezionarne solo una parte qui.": "The selection, or the visible lines if nothing is selected. You can also select just a part here.",
+  "Su Mac, per selezionare il testo tieni premuto Option (⌥) mentre trascini.": "On a Mac, hold Option (⌥) while dragging to select text.",
+  "Copiato.": "Copied.", "Il testo è selezionato: tieni premuto e scegli Copia.": "The text is selected: long-press and choose Copy.",
   "Share": "Shares", "Rifiutate": "Rejected", "Efficienza": "Efficiency", "media": "avg", "ultimo minuto": "last minute",
   "Temp CPU": "CPU temp", "Carico CPU": "CPU load", "Consumo": "Power", "Consumo totale": "Total power", "Consumo GPU": "GPU power",
   "Ferma miner": "Stop miner", "Autofan": "Autofan", "Autofan spento": "Autofan off", "in uso": "in use", "offline": "offline",

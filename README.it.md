@@ -90,8 +90,8 @@ Compare un QR code: inquadralo con il telefono e accedi a Tailscale. Un secondo 
 
    | | |
    |---|---|
-   | SHA-256 | `1ffd0a88b23b5eaeb0839b03a896d9dfe99c236d0b65c34aaba2fe41c5fb3042` |
-   | MD5 | `5f32ce8e413fd5f5053c6d96cb3b1951` |
+   | SHA-256 | `ea9e8f04d7b088bda110a210e276825aa914b404b27002e8eba8e635ebdce399` |
+   | MD5 | `b9cf8d04b10e5d7bd390ee5ee491bdbe` |
 
    Mac/Linux: `shasum -a 256 minai-installer.iso` · Windows: `certutil -hashfile minai-installer.iso SHA256`
 3. Scrivila su una chiavetta (da 8 GB in su) con [balenaEtcher](https://etcher.balena.io).

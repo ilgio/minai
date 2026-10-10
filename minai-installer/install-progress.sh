@@ -12,7 +12,7 @@ while true; do
   if ls /var/crash/*install_fail* >/dev/null 2>&1; then
     MINAI_TITLE_EN="Installation failed" \
     minai_screen "Installazione non riuscita" 0 \
-      "$(grep -m1 -oE "E: .*|Unable to locate package [^ ']*" "$LOG" 2>/dev/null || echo 'Errore / Error')" "$START" \
+      "$(grep -oE "E: .*" "$LOG" 2>/dev/null | grep -v "dev/pts" | tail -1 | cut -c1-90)" "$START" \
       "Riavvia con la chiavetta per riprovare. Shell: Ctrl+Alt+F1, Invio  /  Restart from the stick to retry."
     exit 0
   fi

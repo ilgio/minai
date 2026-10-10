@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 # ascolta solo su un socket locale: da fuori si raggiunge soltanto passando dal pannello, dopo il login
-ExecStart=TTYD_BIN -i /run/miner-terminal.sock -b /term -W -P 5 -t fontSize=14 -t titleFixed=Terminale -t disableLeaveAlert=true runuser -l OWNER_USER -c "tmux new -A -s main"
+ExecStart=TTYD_BIN -i /run/miner-terminal.sock -b /term -W -P 5 -t fontSize=14 -t rendererType=dom -t fontFamily=Menlo,Consolas,monospace -t macOptionClickForcesSelection=true -t cursorBlink=false -t titleFixed=Terminale -t disableLeaveAlert=true runuser -l OWNER_USER -c "tmux new -A -s main"
 ExecStopPost=/bin/rm -f /run/miner-terminal.sock
 Restart=always
 RestartSec=3

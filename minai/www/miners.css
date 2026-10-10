@@ -453,3 +453,19 @@ pre .c12 { color: #79c0ff; } pre .c13 { color: #d2a8ff; } pre .c14 { color: #56d
 pre [class*="bg"] { padding: 0 .3em; border-radius: 3px; }
 pre .bg0 { background: #21262d; } pre .bg1 { background: #5c1f24; } pre .bg2 { background: #12432a; } pre .bg3 { background: #4d3a0b; }
 pre .bg4 { background: #163a66; } pre .bg5 { background: #3b1d5c; } pre .bg6 { background: #0f4047; } pre .bg7 { background: #6e7681; }
+
+/* terminale: tasti per il telefono, copia e incolla */
+.termkeys { display: flex; gap: .3rem; overflow-x: auto; margin-top: 1rem; padding-bottom: .1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.termkeys::-webkit-scrollbar { display: none; }
+.termkeys button { flex: none; padding: .45rem .7rem; font: 600 13px ui-monospace, Menlo, monospace; border-radius: 9px; touch-action: manipulation; }
+.termkeys button.tk-main { font-family: inherit; color: var(--cyan); border-color: rgba(56, 214, 232, .35); }
+.termkeys + .termwrap { margin-top: .5rem; }
+#clipText { width: 100%; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+.termhint { line-height: 1.5; }
+@media (max-width: 700px) {
+  /* nella tab Terminale il telefono dà tutto lo spazio al terminale */
+  body.tab-term .top.hero, body.tab-term .brandbar { display: none; }
+  body.tab-term .termkeys { margin-top: 0; }
+  body.tab-term .termwrap { height: calc(100vh - 12.5rem); height: calc(100dvh - 12.5rem); }
+}
+@media (max-width: 700px) { .termhint br, .termhint span:last-child { display: none; } }
