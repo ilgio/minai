@@ -31,7 +31,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "0.9.28"
+VERSION = "0.9.29"
 ROOT = os.environ.get("MINERS_ROOT", "/opt/miners")
 CONF = f"{ROOT}/panel.json"
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
@@ -271,6 +271,24 @@ class ApiError(Exception):
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
+
+
+_GPU_SEEN = {"t": 0.0, "v": True}
+def has_gpu():
+    """C'è una scheda NVIDIA sul bus PCI? Senza, nvidia-smi non va nemmeno chiamato: ogni chiamata prova a caricare il
+    driver e riempie il registro di messaggi 'NVRM: No NVIDIA GPU found'. Controllo rapido, riletto ogni 30 secondi."""
+    now = time.time()
+    if now - _GPU_SEEN["t"] > 30:
+        v = False
+        for p in glob.glob("/sys/bus/pci/devices/*/vendor"):
+            try:
+                if open(p).read().strip() == "0x10de":
+                    v = True; break
+            except OSError:
+                pass
+        _GPU_SEEN.update(t=now, v=v)
+    return _GPU_SEEN["v"]
+
 
 
 def run(args, timeout=30):
@@ -549,6 +567,8 @@ def sys_sampler():
             cpu_w = round(de / 1e6 / (now - prev_t))
         gpu_w = None
         try:
+            if not has_gpu():
+                raise FileNotFoundError("nessuna GPU")
             out = subprocess.run(["nvidia-smi", "--query-gpu=power.draw", "--format=csv,noheader,nounits"],
                                  capture_output=True, text=True, timeout=10).stdout
             vals = []
@@ -570,7 +590,7 @@ DRIVER = {"version": ""}
 
 def nvidia_driver():
     """Versione del driver NVIDIA, letta una volta sola (riprova finché non la trova)."""
-    if not DRIVER["version"]:
+    if not DRIVER["version"] and has_gpu():
         try:
             out = subprocess.run(["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
                                  capture_output=True, text=True, timeout=10).stdout
@@ -875,6 +895,8 @@ def api_log(query):
 
 
 def api_gpus(_):
+    if not has_gpu():
+        return {"gpus": []}
     try:
         out = run(["nvidia-smi",
                    "--query-gpu=index,name,temperature.gpu,power.draw,utilization.gpu,clocks.sm,clocks.mem,fan.speed,power.limit",

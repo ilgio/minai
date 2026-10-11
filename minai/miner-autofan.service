@@ -3,6 +3,8 @@ Description=Autofan GPU (pannello minai)
 After=nvidia-persistenced.service systemd-modules-load.service
 
 [Service]
+# senza una scheda NVIDIA il servizio non parte (e non cerca il driver)
+ExecCondition=/bin/sh -c 'grep -qs 0x10de /sys/bus/pci/devices/*/vendor'
 ExecStart=/opt/miners/venv/bin/python3 /opt/miners/autofan.py
 Restart=always
 RestartSec=10

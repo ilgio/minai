@@ -46,6 +46,8 @@ sudo install -m 755 autofan.py /opt/miners/autofan.py
 sudo install -m 755 update.sh /opt/miners/update.sh
 sudo install -m 755 run-launch.sh /opt/miners/run-launch.sh
 sudo install -m 644 oc.service miner-panel.service miner-autofan.service /etc/systemd/system/
+# se si toglie la GPU il rig deve partire lo stesso: il servizio del driver non ritenta all'infinito
+sudo install -D -m 644 nvidia-guard.conf /etc/systemd/system/nvidia-persistenced.service.d/minai-guard.conf
 # il miner gira come utente normale (con la sua cartella personale come HOME)
 sed -e "s|OWNER_USER|$U|" -e "s|OWNER_GROUP|$(id -gn "$U")|" -e "s|OWNER_HOME|$HOME_DIR|" miner.service \
   | sudo tee /etc/systemd/system/miner.service >/dev/null

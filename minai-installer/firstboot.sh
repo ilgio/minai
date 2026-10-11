@@ -55,10 +55,23 @@ fi
 
 step 10 70 "Driver NVIDIA (la parte piu' lunga)  /  NVIDIA driver (the longest part)"
 if lspci | grep -qi nvidia && ! command -v nvidia-smi >/dev/null; then
-  echo "driver NVIDIA"
-  ubuntu-drivers install --gpgpu nvidia:610-open || ubuntu-drivers install --gpgpu
+  # sempre il driver "open" piu' recente offerto da Ubuntu per questo hardware (oggi 615-open, domani il successivo)
+  DRV=$(ubuntu-drivers list --gpgpu 2>/dev/null | grep -oP 'nvidia-driver-\K[0-9]+-open' | sort -t- -k1,1n -u | tail -1)
+  echo "driver NVIDIA scelto: ${DRV:-(automatico)}"
+  if [ -n "$DRV" ]; then
+    ubuntu-drivers install --gpgpu "nvidia:$DRV" || ubuntu-drivers install --gpgpu
+  else
+    ubuntu-drivers install --gpgpu
+  fi
   BR=$(dpkg-query -W -f='${Package}\n' 'nvidia-*' 2>/dev/null | grep -oP '^nvidia-(headless|driver|compute-utils)(-no-dkms)?-\K[0-9]+' | head -1)
   [ -n "$BR" ] && apt-get install -y -q "nvidia-utils-$BR" || true
+  # senza driver il rig non serve a niente: meglio fermarsi con un errore ben visibile che finire "bene" senza GPU
+  if ! command -v nvidia-smi >/dev/null || ! modinfo nvidia >/dev/null 2>&1; then
+    echo "ERRORE: driver NVIDIA non installato correttamente"
+    step E E "Driver NVIDIA non installato. Dettagli: /var/log/minai-firstboot.log"
+    exit 1
+  fi
+  echo "driver NVIDIA ok: $(modinfo -F version nvidia 2>/dev/null)"
 fi
 
 step 70 95 "minai e Tailscale  /  minai and Tailscale"

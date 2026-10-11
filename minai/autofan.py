@@ -68,7 +68,12 @@ def now():
 
 
 def main():
-    N.nvmlInit()
+    try:
+        N.nvmlInit()
+    except N.NVMLError:
+        print("nessuna GPU NVIDIA: autofan fermo", flush=True)
+        while True:
+            time.sleep(3600)
     was_enabled = False
     stopped_by_us = False
     event = load(STATUS, {}).get("event")
