@@ -31,7 +31,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "0.9.24"
+VERSION = "0.9.28"
 ROOT = os.environ.get("MINERS_ROOT", "/opt/miners")
 CONF = f"{ROOT}/panel.json"
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
@@ -1217,7 +1217,10 @@ ROUTES = [
     ("PUT", r"autofan", api_autofan_put),
 ]
 STATIC = {"": "index.html", "index.html": "index.html", "miners.css": "miners.css", "miners.js": "miners.js", "i18n.js": "i18n.js",
-          "logo.svg": "logo.svg", "apple-touch-icon.png": "apple-touch-icon.png", "favicon.ico": "logo.svg"}
+          "logo.svg": "logo.svg", "apple-touch-icon.png": "apple-touch-icon.png", "favicon.ico": "logo.svg",
+          # terminale nel browser (xterm.js)
+          "term.html": "term.html", "term.js": "term.js", "vendor/xterm.js": "vendor/xterm.js",
+          "vendor/xterm.css": "vendor/xterm.css", "vendor/addon-fit.js": "vendor/addon-fit.js"}
 TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
 

@@ -455,17 +455,24 @@ pre .bg0 { background: #21262d; } pre .bg1 { background: #5c1f24; } pre .bg2 { b
 pre .bg4 { background: #163a66; } pre .bg5 { background: #3b1d5c; } pre .bg6 { background: #0f4047; } pre .bg7 { background: #6e7681; }
 
 /* terminale: tasti per il telefono, copia e incolla */
-.termkeys { display: flex; gap: .3rem; overflow-x: auto; margin-top: 1rem; padding-bottom: .1rem; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-.termkeys::-webkit-scrollbar { display: none; }
-.termkeys button { flex: none; padding: .45rem .7rem; font: 600 13px ui-monospace, Menlo, monospace; border-radius: 9px; touch-action: manipulation; }
-.termkeys button.tk-main { font-family: inherit; color: var(--cyan); border-color: rgba(56, 214, 232, .35); }
-.termkeys + .termwrap { margin-top: .5rem; }
+.termkeys { display: flex; flex-direction: column; gap: .3rem; margin-top: .5rem; }
+html { touch-action: pan-x pan-y; }
+.tkrow { display: flex; gap: .3rem; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.tkrow::-webkit-scrollbar { display: none; }
+.termkeys button { flex: 1 1 0; min-width: 0; padding: .55rem .2rem; font: 600 13px ui-monospace, Menlo, monospace; border-radius: 9px; touch-action: manipulation; }
+.termkeys button.tk-main { flex: 1.7 1 auto; font-family: inherit; color: var(--cyan); border-color: rgba(56, 214, 232, .35); }
+.termkeys button.on { background: var(--accent); color: #04121a; border-color: var(--accent); }
 #clipText { width: 100%; font: 13px/1.45 ui-monospace, Menlo, monospace; }
 .termhint { line-height: 1.5; }
 @media (max-width: 700px) {
-  /* nella tab Terminale il telefono dà tutto lo spazio al terminale */
-  body.tab-term .top.hero, body.tab-term .brandbar { display: none; }
-  body.tab-term .termkeys { margin-top: 0; }
-  body.tab-term .termwrap { height: calc(100vh - 12.5rem); height: calc(100dvh - 12.5rem); }
+  /* nella tab Terminale il telefono dà tutto lo spazio al terminale: schermo intero, tasti in basso sopra la tastiera */
+  body.tab-term { overflow: hidden; }
+  body.tab-term .top.hero, body.tab-term .brandbar, body.tab-term .foot, body.tab-term .termhint { display: none; }
+  body.tab-term #tab-terminale { position: fixed; left: 0; right: 0; top: 0; z-index: 15; display: flex; flex-direction: column;
+    bottom: calc(5.25rem + env(safe-area-inset-bottom)); background: var(--bg); padding: 0; margin: 0; }
+  body.tab-term #tab-terminale[hidden] { display: none; }
+  body.tab-term .termwrap { flex: 1; min-height: 0; height: auto; margin: 0; border-radius: 0; border-left: 0; border-right: 0; }
+  body.tab-term .termkeys { margin: 0; padding: .35rem .35rem calc(.35rem + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); }
+  body.tab-term.kb-open .termkeys { padding-bottom: .35rem; }
+  body.tab-term.kb-open .tabs { display: none; }
 }
-@media (max-width: 700px) { .termhint br, .termhint span:last-child { display: none; } }

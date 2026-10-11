@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Terminale</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="color-scheme" content="dark">
+  <link rel="stylesheet" href="vendor/xterm.css">
+  <style>
+    html, body { touch-action: none; margin: 0; height: 100%; background: #0b0e14; overflow: hidden; }
+    #sc { position: absolute; inset: 4px 0 0 6px; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    #t { height: 100%; }
+    #st { position: absolute; right: 8px; top: 6px; z-index: 5; font: 12px system-ui, sans-serif; color: #f5a623;
+          background: rgba(11, 14, 20, .9); padding: 2px 8px; border-radius: 6px; }
+    #selbar { position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 6; display: none; gap: 8px;
+              background: #121722; border: 1px solid #2b3550; border-radius: 12px; padding: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+    #selbar.on { display: flex; }
+    #selbar button { font: 600 15px system-ui, sans-serif; padding: 9px 16px; border-radius: 9px; border: 1px solid #2b3550; background: #1b2233; color: #d6deeb; }
+    #selbar button.main { background: #38d6e8; color: #04121a; border-color: #38d6e8; }
+    #st:empty { display: none; }
+  </style>
+  <script src="vendor/xterm.js" defer></script>
+  <script src="vendor/addon-fit.js" defer></script>
+  <script src="term.js" defer></script>
+</head>
+<body><div id="sc"><div id="t"></div></div><div id="st"></div><div id="selbar"><button class="main" id="selCopy">Copia</button><button id="selAll">Tutto</button><button id="selClose">Annulla</button></div></body>
+</html>

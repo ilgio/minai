@@ -607,29 +607,19 @@ async function applyOc(clear) {
 let hiddenSince = 0;
 function openTerm(reload) {
   const f = $("termFrame");
-  // sul telefono usa il terminale con i caratteri piccoli (stessa sessione tmux)
-  const base = matchMedia("(max-width: 700px)").matches ? "termm" : "term";
-  if (!f.getAttribute("src") || reload || !f.getAttribute("src").startsWith(base + "/")) f.src = `${base}/?t=${Date.now()}`;
-  // la tab era nascosta: si cambia la misura di un pixel e la si rimette, così terminale e tmux si ridisegnano
-  f.style.height = "calc(100% - 1px)";
-  setTimeout(() => {
-    f.style.height = "";
-    try { f.contentWindow.dispatchEvent(new Event("resize")); f.contentWindow.focus(); } catch {}
-  }, 120);
+  // pagina del terminale di minai (xterm.js): stessa sessione tmux su computer e telefono
+  if (!f.getAttribute("src") || reload) f.src = `term.html?t=${Date.now()}`;
+  // la tab era nascosta: si ricalcola la misura e la si comunica a tmux
+  setTimeout(() => { try { f.contentWindow.refit && f.contentWindow.refit(); } catch {} }, 80);
 }
 
 /* ---------- tasti, copia e incolla del terminale (utili soprattutto su iPhone) ---------- */
 const TERM_KEYS = { esc: "\x1b", tab: "\t", up: "\x1b[A", down: "\x1b[B", right: "\x1b[C", left: "\x1b[D",
-                    c: "\x03", d: "\x04", z: "\x1a" };
+                    c: "\x03", d: "\x04", z: "\x1a", pipe: "|", tilde: "~", slash: "/", dash: "-" };
 function termObj() { try { return $("termFrame").contentWindow.term || null; } catch { return null; } }
 function termSend(data) {
-  const t = termObj();
-  if (!t) return;
   // come se fosse scritto sulla tastiera (senza le sequenze di "incolla" che bash aggiunge)
-  if (typeof t.input === "function") t.input(data, true);
-  else if (t._core && t._core.coreService) t._core.coreService.triggerDataEvent(data, true);
-  else t.paste(data);
-  t.focus();
+  try { $("termFrame").contentWindow.termSend(data); } catch {}
 }
 function termText() {
   const t = termObj();
@@ -679,9 +669,37 @@ for (const b of document.querySelectorAll("#termKeys button")) {
   b.addEventListener("pointerdown", e => e.preventDefault());
   b.addEventListener("click", () => {
     const k = b.dataset.k;
-    if (k === "paste" || k === "copy") openClip(k); else termSend(TERM_KEYS[k]);
+    const w = () => { try { return $("termFrame").contentWindow; } catch { return null; } };
+    if (k === "copy") { const x = w(); if (x && x.termHasSel && x.termHasSel()) x.termCopy(); else openClip("copy"); }
+    else if (k === "paste") openClip(k);
+    else if (k === "ctrl") { const x = w(); if (x && x.termCtrl) x.termCtrl(); }
+    else if (k === "wide") { const x = w(); if (x && x.termWide) b.classList.toggle("on", x.termWide()); }
+    else termSend(TERM_KEYS[k]);
   });
 }
+// il Ctrl a scatto si accende/spegne anche quando lo consuma la tastiera
+function bindCtrl() { try { $("tkWide").classList.toggle("on", !!$("termFrame").contentWindow.termIsWide()); } catch {}
+  try { $("termFrame").contentWindow.onCtrl = on => { $("tkCtrl").classList.toggle("on", on); $("tkCtrl").setAttribute("aria-pressed", on); }; } catch {} }
+$("termFrame").addEventListener("load", bindCtrl);
+
+document.addEventListener("gesturestart", e => e.preventDefault());   // niente zoom della pagina con due dita
+
+/* su telefono il terminale occupa tutto lo schermo visibile, con i tasti subito sopra la tastiera */
+function layoutTerm() {
+  const p = $("tab-terminale"), vv = window.visualViewport;
+  const on = document.body.classList.contains("tab-term") && matchMedia("(max-width: 700px)").matches;
+  if (!on || !vv) { p.style.top = p.style.height = p.style.bottom = ""; document.body.classList.remove("kb-open"); return; }
+  const kb = innerHeight - vv.height > 120;
+  document.body.classList.toggle("kb-open", kb);
+  if (kb) { p.style.top = vv.offsetTop + "px"; p.style.height = Math.max(120, vv.height) + "px"; p.style.bottom = "auto"; }
+  else {   // tastiera chiusa: fino alla barra delle tab, qualunque sia la sua altezza
+    const tabs = document.querySelector(".tabs"), top = tabs ? tabs.getBoundingClientRect().top : innerHeight;
+    p.style.top = "0"; p.style.height = "auto"; p.style.bottom = Math.max(0, innerHeight - top) + "px";
+  }
+  window.scrollTo(0, 0);
+}
+if (window.visualViewport) { visualViewport.addEventListener("resize", layoutTerm); visualViewport.addEventListener("scroll", layoutTerm); }
+addEventListener("resize", layoutTerm);
 $("btnClipOk").addEventListener("click", clipOk);
 $("btnClipClose").addEventListener("click", () => $("clipDialog").close());
 
@@ -712,6 +730,7 @@ function showTab(name) {
   }
   if (name === "generale") $("log").scrollTop = $("log").scrollHeight;
   document.body.classList.toggle("tab-term", name === "terminale");
+  layoutTerm();
   if (name === "terminale") openTerm(false);
   try { localStorage.setItem("miners-tab", name); } catch {}
 }
@@ -749,7 +768,7 @@ document.addEventListener("visibilitychange", () => {
   if (started && !$("app").hidden) {
     pollLog(); gpus(); refreshStatus().catch(() => {});
     // dopo qualche secondo in background la connessione del terminale è caduta: la riapriamo (tmux conserva la sessione)
-    if (!$("tab-terminale").hidden && Date.now() - hiddenSince > 3000) openTerm(true);
+    if (!$("tab-terminale").hidden && Date.now() - hiddenSince > 3000) openTerm(false);
   }
 });
 

@@ -29,7 +29,7 @@ echo "== Tailscale"
 command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sudo sh
 
 echo "== Cartelle"
-sudo mkdir -p /opt/miners/scripts /opt/miners/panel/www
+sudo mkdir -p /opt/miners/scripts /opt/miners/panel/www/vendor
 as_user mkdir -p "$BIN" "$HOME_DIR/models"
 
 echo "== Libreria NVIDIA per l'overclock"
@@ -38,7 +38,9 @@ sudo /opt/miners/venv/bin/pip install -q --upgrade nvidia-ml-py
 
 echo "== File del pannello e servizi"
 sudo install -m 755 server.py /opt/miners/panel/server.py
-sudo install -m 644 www/index.html www/miners.css www/miners.js www/i18n.js www/logo.svg www/apple-touch-icon.png /opt/miners/panel/www/
+sudo install -m 644 www/index.html www/miners.css www/miners.js www/i18n.js www/logo.svg www/apple-touch-icon.png \
+  www/term.html www/term.js /opt/miners/panel/www/
+sudo install -m 644 www/vendor/* /opt/miners/panel/www/vendor/
 sudo install -m 755 oc.py /opt/miners/oc.py
 sudo install -m 755 autofan.py /opt/miners/autofan.py
 sudo install -m 755 update.sh /opt/miners/update.sh
