@@ -314,3 +314,11 @@ dialog h2 { text-transform: none; letter-spacing: 0; color: var(--fg); font-size
 .rig { padding-right: .95rem; } .righead { padding-right: 2rem; }
 .gpurow { gap: .55rem; } .gv { min-width: 2.4rem; }
 .foot { gap: .5rem 1.25rem; flex-wrap: wrap; align-items: center; }
+
+/* GPU | CPU */
+.seg { display: inline-flex; gap: 2px; padding: 3px; margin: 0 0 .75rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+.seg button { background: none; border: 0; color: var(--muted); padding: .3rem .9rem; border-radius: 7px; font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.seg button.on { background: var(--accent); color: var(--accent-fg); }
+.badge.cpu { background: rgba(94, 160, 255, .15); color: #6aa9ff; }
+.rig .speedrow { display: flex; align-items: baseline; gap: .5rem; }
+.rig .speedrow .slot { font-size: .7rem; font-weight: 700; letter-spacing: .06em; color: var(--muted); min-width: 2.2rem; }

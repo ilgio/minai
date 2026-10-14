@@ -97,6 +97,13 @@
         </svg>
         <div class="mm"><span id="sparkSpan">ultimi 30 min</span><span><i>min</i> <b id="spMin">–</b></span><span><i>media</i> <b id="spAvg">–</b></span><span class="mx"><i>max</i> <b id="spMax">–</b></span></div>
       </div>
+      <div id="cpuBox" class="cpubox" hidden>
+        <span class="cpulabel">CPU</span>
+        <span id="cpuDot" class="dot off"></span>
+        <span id="cpuName" class="cpuname"></span>
+        <span id="cpuSpeed" class="cpuspeed"></span>
+        <button id="btnCpuStop" class="small">Ferma</button>
+      </div>
       <div class="sysline" id="sysline" hidden>
         <div class="chip" id="chipAcc" hidden><span class="k">Share</span><span class="v g" id="shAcc">–</span></div>
         <div class="chip" id="chipRej" hidden><span class="k">Rifiutate</span><span class="v" id="shRej">–</span></div>
@@ -129,6 +136,7 @@
       <section>
         <div class="head loghead">
           <h2>Log</h2>
+          <div id="logKindBox" hidden><div class="seg kindseg" role="group" aria-label="Tipo di mining"><button data-kind="gpu">GPU</button><button data-kind="cpu">CPU</button></div></div>
           <button id="btnEditActive" hidden>Modifica lancio</button>
         </div>
         <div id="testBanner" class="managedbox testbanner" hidden>
@@ -158,9 +166,11 @@
             <button id="btnNewMiner" class="primary">Installa miner</button>
           </div>
         </div>
+        <div class="seg kindseg" role="group" aria-label="Tipo di mining"><button data-kind="gpu">GPU</button><button data-kind="cpu">CPU</button></div>
         <p class="managedbox managednote" hidden><span>Gestiti da minai-server.</span> <a class="gotoServer" hidden>Apri sul server ›</a></p>
         <div id="minerForm" class="form card" hidden>
           <label>Nome <input id="minerName" placeholder="racer" spellcheck="false" autocapitalize="off"></label>
+          <label>Tipo <select id="minerKind"><option value="gpu">GPU</option><option value="cpu">CPU</option></select></label>
           <label>Link del pacchetto (.tar.gz, .zip o binario)
             <input id="minerUrl" placeholder="https://github.com/…/racer-0.9.0.tar.gz" spellcheck="false" autocapitalize="off">
           </label>
@@ -184,6 +194,7 @@
           <h2>Lanci</h2>
           <button id="btnNewLaunch" class="primary">Nuovo lancio</button>
         </div>
+        <div class="seg kindseg" role="group" aria-label="Tipo di mining"><button data-kind="gpu">GPU</button><button data-kind="cpu">CPU</button></div>
         <p class="managedbox managednote" hidden><span>Gestiti da minai-server.</span> <a class="gotoServer" hidden>Apri sul server ›</a></p>
         <div id="editor" class="form card" hidden>
           <h3 id="editorTitle"></h3>
@@ -191,6 +202,7 @@
             <label>Nome <input id="launchName" placeholder="coin-pool" spellcheck="false" autocapitalize="off"></label>
             <label>Miner <select id="launchMiner"></select></label>
           </div>
+          <label id="kindRow">Tipo <select id="launchKind"><option value="gpu">GPU</option><option value="cpu">CPU</option></select></label>
           <label>Comando completo (pool, wallet, parametri)
             <textarea id="content" spellcheck="false" autocapitalize="off" rows="12"></textarea>
           </label>
@@ -260,6 +272,9 @@
     <h3>Nome del rig</h3>
     <p class="muted small">In rete locale il rig risponde a <strong>http://<span id="nameLocal">nome</span>.local</strong>.</p>
     <div class="copyrow"><input id="rigNameInput" autocapitalize="off" autocorrect="off" spellcheck="false"><button id="btnRename">Salva</button></div>
+    <h3>SSH</h3>
+    <label class="switch"><input id="sshEnabled" type="checkbox"><span></span>Consenti l'accesso SSH a questo rig</label>
+    <p class="muted small" id="sshHint">Con SSH acceso ti colleghi dal terminale del computer con <strong id="sshCmd">ssh utente@nome.local</strong>, usando la password dell'utente del rig.</p>
     <div id="linkBox">
       <h3>Collegamento a minai-server</h3>
       <p class="muted small">In minai-server: menu &gt; Aggiungi rig, e incolla questi due valori.</p>

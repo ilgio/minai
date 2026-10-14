@@ -126,6 +126,7 @@ unzip minai.zip && bash minai/install.sh
   cd /home/user/miners/srbminer
   exec ./SRBMiner-MULTI --algorithm pearlhash --pool stratum+tcp://pool:3333 --wallet WALLET.%WORKER_NAME%
   ```
+- **GPU and CPU mining:** every rig can mine a GPU coin and a CPU coin at the same time. In **Miners** and **Launches** pick the **GPU | CPU** filter; each miner and launch has a type, and each type has its own Start/Stop, log and hashrate (both are shown on the rig card).
 - **GPUs per rig:** each GPU card in the rig panel has an **Enabled/Disabled** switch. Most miners simply don't see disabled GPUs. For miners that need an explicit GPU list, write `%GPU_ENABLED%` in the launch: it becomes the rig's enabled GPUs, for example `0,1`. Don't hard-code GPU numbers in shared launches.
 - **Start on…**: pick the rigs.
 - **Always in sync:** every change in the catalog (new, updated, renamed or deleted miners and launches) is applied to all rigs automatically. Renaming a miner keeps its folder and data.

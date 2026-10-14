@@ -66,6 +66,9 @@ const EN = {
   "Aggiorna i rig": "Update the rigs", "Togli": "Remove", "Chiudi": "Close", "Copia": "Copy", "Copiato": "Copied", "Salvato": "Saved",
   "Avvia": "Start", "Riavvia": "Restart", "Ferma": "Stop", "Modifica": "Edit", "Elimina": "Delete", "Rimuovi": "Remove",
   "Collega": "Connect", "Installa": "Install", "Nome": "Name", "Comando": "Command", "Origine": "Source",
+  "Tipo": "Type", "Sposta in CPU": "Move to CPU", "Sposta in GPU": "Move to GPU",
+  "Nessun miner CPU installato.": "No CPU miner installed.", " · errore, riprovo…": " · error, retrying…", " · fermo": " · stopped",
+  "Velocità GPU": "GPU speed", "Velocità CPU": "CPU speed",
   "Lancio": "Launch", "Lanci": "Launches", "Miner": "Miners", "Rig": "Rigs", "Generale": "Overview", "Terminale": "Terminal",
   "Log": "Log", "GPU": "GPUs", "Stato": "Status", "Indirizzo": "Address", "Rete": "Network",
   "Controlla aggiornamenti": "Check for updates", "Aggiornamento…": "Updating…", "Applico…": "Applying…", "Fatto.": "Done.",
@@ -92,6 +95,10 @@ const EN = {
   "Primo avvio: scegli la password del pannello (almeno 8 caratteri).":
     "First start: choose the panel password (at least 8 characters).",
   "Nome del rig": "Rig name",
+  "SSH": "SSH", ", usando la password dell'utente del rig.": ", using the rig user's password.",
+  "Consenti l'accesso SSH a questo rig": "Allow SSH access to this rig",
+  "Con SSH acceso ti colleghi dal terminale del computer con": "With SSH on, connect from your computer's terminal with",
+  "Impossibile installare SSH: ": "Could not install SSH: ",
   "Nome del rig: lettere minuscole, numeri e trattini, senza spazi (per esempio rig-01).":
     "Rig name: lowercase letters, numbers and dashes, no spaces (for example rig-01).",
 

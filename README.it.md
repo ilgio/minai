@@ -126,6 +126,7 @@ unzip minai.zip && bash minai/install.sh
   cd /home/user/miners/srbminer
   exec ./SRBMiner-MULTI --algorithm pearlhash --pool stratum+tcp://pool:3333 --wallet WALLET.%WORKER_NAME%
   ```
+- **Mining GPU e CPU:** ogni rig può minare insieme una coin GPU e una coin CPU. In **Miner** e **Lanci** scegli il filtro **GPU | CPU**: ogni miner e lancio ha un tipo, e ogni tipo ha il suo Avvia/Ferma, il suo log e la sua velocità (le due si vedono nella card del rig).
 - **GPU per rig:** ogni scheda GPU nel pannello del rig ha l'interruttore **Attiva/Disattivata**. La maggior parte dei miner semplicemente non vede le GPU disattivate. Per i miner che vogliono l'elenco delle GPU, scrivi `%GPU_ENABLED%` nel lancio: diventa l'elenco delle GPU attive del rig, per esempio `0,1`. Nei lanci condivisi non scrivere numeri di GPU fissi.
 - **Avvia su…**: scegli i rig.
 - **Sempre allineati:** ogni modifica al catalogo (miner e lanci nuovi, aggiornati, rinominati o eliminati) arriva da sola su tutti i rig. Rinominando un miner, cartella e dati restano.

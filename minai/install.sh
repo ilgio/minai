@@ -51,6 +51,8 @@ sudo install -D -m 644 nvidia-guard.conf /etc/systemd/system/nvidia-persistenced
 # il miner gira come utente normale (con la sua cartella personale come HOME)
 sed -e "s|OWNER_USER|$U|" -e "s|OWNER_GROUP|$(id -gn "$U")|" -e "s|OWNER_HOME|$HOME_DIR|" miner.service \
   | sudo tee /etc/systemd/system/miner.service >/dev/null
+sed -e "s|OWNER_USER|$U|" -e "s|OWNER_GROUP|$(id -gn "$U")|" -e "s|OWNER_HOME|$HOME_DIR|" miner-cpu.service \
+  | sudo tee /etc/systemd/system/miner-cpu.service >/dev/null
 # migrazione: file e modelli creati quando il miner girava come root diventano dell'utente
 sudo chown -R "$OWNER" "$BIN" "$HOME_DIR/models" 2>/dev/null || true
 sed -e "s|TTYD_BIN|$(command -v ttyd)|" -e "s|OWNER_USER|$U|" miner-terminal.service \
@@ -75,11 +77,11 @@ elif ! sudo test -f /opt/miners/panel.json; then
 fi
 
 sudo systemctl daemon-reload
-sudo systemctl enable miner.service oc.service >/dev/null
+sudo systemctl enable miner.service miner-cpu.service oc.service >/dev/null
 sudo systemctl enable miner-panel.service miner-terminal.service miner-terminal-mobile.service miner-autofan.service >/dev/null
 sudo systemctl restart miner-terminal.service miner-terminal-mobile.service miner-autofan.service miner-panel.service
 # se il miner sta girando, riparte subito come utente normale
-sudo systemctl try-restart miner.service 2>/dev/null || true
+sudo systemctl try-restart miner.service miner-cpu.service 2>/dev/null || true
 
 # Il vecchio pannello di Cockpit non serve più
 [ -d /usr/share/cockpit/miners ] && sudo rm -rf /usr/share/cockpit/miners && echo "Rimosso il vecchio pannello da Cockpit."

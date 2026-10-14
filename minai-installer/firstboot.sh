@@ -53,6 +53,21 @@ if ! dpkg -s linux-generic-hwe-24.04 >/dev/null 2>&1 && [ ! -f /var/lib/minai-hw
   echo "kernel HWE non installato: continuo con il kernel attuale"
 fi
 
+# rete indipendente dalla posizione della scheda: se si toglie o si sposta una GPU il nome della scheda di rete cambia
+# (enp1s0 -> enp2s0) e la configurazione fissa non la troverebbe piu'. Questa prende qualunque scheda cablata.
+cat > /etc/netplan/99-minai-dhcp.yaml <<'EOF2'
+network:
+  version: 2
+  ethernets:
+    minai-any-en:
+      match:
+        name: "en*"
+      dhcp4: true
+      dhcp6: false
+      optional: true
+EOF2
+chmod 600 /etc/netplan/99-minai-dhcp.yaml
+
 step 10 70 "Driver NVIDIA (la parte piu' lunga)  /  NVIDIA driver (the longest part)"
 if lspci | grep -qi nvidia && ! command -v nvidia-smi >/dev/null; then
   # sempre il driver "open" piu' recente offerto da Ubuntu per questo hardware (oggi 615-open, domani il successivo)

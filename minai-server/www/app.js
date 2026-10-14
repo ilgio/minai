@@ -51,6 +51,9 @@ function ago(ts) {
 }
 
 // Grafico piccolo della velocità (ultimi 30 minuti), dai rig con minai 0.9.22 o successivo
+let kindView = "gpu";
+try { kindView = localStorage.getItem("srv-kind") === "cpu" ? "cpu" : "gpu"; } catch {}
+const slotsOf = st => [["GPU", st, st && st.running], ["CPU", st && st.cpu, st && st.cpu && st.cpu.running]];
 let sparkN = 0;
 function sparkSvg(h) {
   const pts = (h || []).filter(v => v !== null);
@@ -75,7 +78,8 @@ function sparkSvg(h) {
 function rigCard(r) {
   const st = r.status || {};
   const sys = st.sys || {};
-  const running = r.online && st.running;
+  const cpuSt = st.cpu || {};
+  const running = r.online && (st.running || cpuSt.running);
   const card = el("a", "rig card" + (r.online ? "" : " offline"));
   card.href = `rig/${r.id}/`;
   if (r.error) card.title = r.error;
@@ -87,7 +91,7 @@ function rigCard(r) {
   const title = el("div", "rigtitle");
   title.append(el("strong", "", r.name));
   if (st.test) title.append(el("span", "testtag", "Lancio di prova"));
-  title.append(el("span", "muted", !r.online ? (r.error && r.error.includes("token") ? "token non valido" : "offline") : running ? (st.active || "").replace(/\.sh$/, "") : "fermo"));
+  title.append(el("span", "muted", !r.online ? (r.error && r.error.includes("token") ? "token non valido" : "offline") : running ? [st.running && st.active, cpuSt.running && cpuSt.active].filter(Boolean).map(a => a.replace(/\.sh$/, "")).join(" + ") : "fermo"));
   const more = el("button", "iconbtn more");
   more.setAttribute("aria-label", `Impostazioni di ${r.name}`);
   more.innerHTML = '<svg><use href="#i-dots"/></svg>';
@@ -95,11 +99,14 @@ function rigCard(r) {
   head.append(dot, title, more);
   card.append(head);
 
-  if (running && st.speed && st.speed.value) {
-    const sp = el("div", "speed");
-    sp.append(el("span", "num", st.speed.value), el("small", "", st.speed.unit));
+  const both = r.online && st.running && cpuSt.running;
+  for (const [label, s, on] of slotsOf(st)) {
+    if (!(r.online && on && s.speed && s.speed.value)) continue;
+    const sp = el("div", "speed" + (both ? " speedrow" : ""));
+    if (both) sp.append(el("span", "slot", label));
+    sp.append(el("span", "num", s.speed.value), el("small", "", s.speed.unit));
     card.append(sp);
-    const spark = sparkSvg(st.history);
+    const spark = sparkSvg(s.history);
     if (spark) card.append(spark);
   }
 
@@ -243,8 +250,10 @@ async function refresh() {
   // velocità sommate per unità (coin diverse non si possono sommare tra loro)
   const byUnit = {};
   for (const r of online) {
-    const sp = r.status && r.status.running && r.status.speed;
-    if (sp && sp.value) byUnit[sp.unit] = (byUnit[sp.unit] || 0) + parseFloat(String(sp.value).replace(",", "."));
+    for (const [, s, on] of slotsOf(r.status)) {
+      const sp = on && s.speed;
+      if (sp && sp.value) byUnit[sp.unit] = (byUnit[sp.unit] || 0) + parseFloat(String(sp.value).replace(",", "."));
+    }
   }
   const sp = $("sumSpeeds");
   sp.replaceChildren(...Object.entries(byUnit).map(([u, v]) => {
@@ -266,7 +275,8 @@ function openRig(r) {
   $("rigLaunchBox").hidden = !r;
   if (r) {
     $("rigLaunch").replaceChildren(...cat.launches.map(l => new Option(l.name, l.name)));
-    const active = r.status && r.status.active && r.status.active.replace(/\.sh$/, "");
+    const act = r.status && (r.status.active || (r.status.cpu && r.status.cpu.active));
+    const active = act && act.replace(/\.sh$/, "");
     if (active && cat.launches.some(l => l.name === active)) $("rigLaunch").value = active;
     $("btnRigStart").disabled = !cat.launches.length || !r.online;
     $("btnRigImport").disabled = !r.online;
@@ -336,7 +346,8 @@ async function refreshCatalog() {
   $("countMiners").textContent = cat.miners.length || "";
   $("countLaunches").textContent = cat.launches.length || "";
   let pending = 0;
-  $("catMiners").replaceChildren(...cat.miners.map(m => {
+  markKind();
+  $("catMiners").replaceChildren(...cat.miners.filter(m => (m.kind || "gpu") === kindView).map(m => {
     const actions = [], badges = [];
     if (m.update) {
       pending++;
@@ -346,7 +357,8 @@ async function refreshCatalog() {
     actions.push(btn("Modifica", () => openMiner(m)), btn("Elimina", () => deleteMiner(m), "danger"));
     return rowEl(m.name, m.url, actions, badges);
   }));
-  $("noMiners").hidden = cat.miners.length > 0;
+  $("noMiners").hidden = cat.miners.some(m => (m.kind || "gpu") === kindView);
+  $("noMiners").textContent = cat.miners.length && kindView === "cpu" ? "Nessun miner CPU." : cat.miners.length ? "Nessun miner GPU." : $("noMiners").dataset.t0 || ($("noMiners").dataset.t0 = $("noMiners").textContent);
   document.querySelector('[data-tab="miner"]').classList.toggle("has-upd", pending > 0);
   const when = cat.checked ? new Date(cat.checked * 1000).toLocaleString(LOCALE, { dateStyle: "short", timeStyle: "short" }) : "";
   const hhmm = cat.checked ? new Date(cat.checked * 1000).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" }) : "";
@@ -358,17 +370,29 @@ async function refreshCatalog() {
   if (cat.checking && !checkPoll) checkPoll = setInterval(() => refreshCatalog().catch(() => {}), 2000);
   if (!cat.checking && checkPoll) { clearInterval(checkPoll); checkPoll = null; }
 
-  $("catLaunches").replaceChildren(...cat.launches.map(l => {
+  $("catLaunches").replaceChildren(...cat.launches.filter(l => (l.kind || "gpu") === kindView).map(l => {
     const names = l.rigs.map(id => (rigs.find(r => r.id === id) || {}).name).filter(Boolean);
     const badges = names.length ? [badge(`in uso su ${names.join(", ")}`, "on")] : [];
     return rowEl(l.name, `miner: ${l.miner}`, [
       btn("Avvia su…", () => openDeploy(l), "primary"), btn("Modifica", () => openLaunch(l)), btn("Elimina", () => deleteLaunch(l), "danger"),
     ], badges);
   }));
-  $("noLaunches").hidden = cat.launches.length > 0;
-  const sel = $("launchMiner"), chosen = sel.value;
-  sel.replaceChildren(...cat.miners.map(m => new Option(m.name, m.name)));
-  if (chosen && cat.miners.some(m => m.name === chosen)) sel.value = chosen;  // conserva la scelta
+  $("noLaunches").hidden = cat.launches.some(l => (l.kind || "gpu") === kindView);
+  fillLaunchMiners();
+}
+function markKind() {
+  document.querySelectorAll(".kindseg button").forEach(b => b.classList.toggle("on", b.dataset.kind === kindView));
+}
+function setKindView(k) {
+  kindView = k; try { localStorage.setItem("srv-kind", k); } catch {}
+  refreshCatalog().catch(() => {});
+}
+// il menu dei miner nel lancio mostra solo quelli del tipo scelto
+function fillLaunchMiners() {
+  const sel = $("launchMiner"), chosen = sel.value, kind = $("launchKind").value;
+  const list = cat.miners.filter(m => (m.kind || "gpu") === kind);
+  sel.replaceChildren(...list.map(m => new Option(m.name, m.name)));
+  if (chosen && list.some(m => m.name === chosen)) sel.value = chosen;  // conserva la scelta
 }
 
 function openMiner(m) {
@@ -376,6 +400,7 @@ function openMiner(m) {
   $("minerForm").hidden = false;
   $("minerName").value = m ? m.name : ""; $("minerName").disabled = false;
   $("minerUrl").value = m ? m.url : "";
+  $("minerKind").value = m ? (m.kind || "gpu") : kindView;
   (m ? $("minerUrl") : $("minerName")).focus();
 }
 async function saveMiner() {
@@ -386,7 +411,7 @@ async function saveMiner() {
       await api("POST", `catalog/miners/${encodeURIComponent(editingMiner.name)}/rename`, { name });
     }
     // lo specchio installa o aggiorna il miner su tutti i rig, e riavvia dove sta girando
-    await api("PUT", `catalog/miners/${encodeURIComponent(name)}`, { url: $("minerUrl").value.trim() });
+    await api("PUT", `catalog/miners/${encodeURIComponent(name)}`, { url: $("minerUrl").value.trim(), kind: $("minerKind").value });
     $("minerForm").hidden = true; msg("error", "");
     refreshAll();
   } catch (e) { msg("error", e.message); }
@@ -417,7 +442,9 @@ function openLaunch(l) {
   $("launchForm").hidden = false;
   $("launchTitle").textContent = l ? `Modifica ${l.name}` : "Nuovo lancio";
   $("launchName").value = l ? l.name : ""; $("launchName").disabled = !!l;
-  $("launchMiner").value = l ? l.miner : cat.miners[0].name;
+  $("launchKind").value = l ? (l.kind || "gpu") : kindView;
+  fillLaunchMiners();
+  if (l) $("launchMiner").value = l.miner;
   $("launchContent").value = l ? l.content : LAUNCH_TEMPLATE($("launchMiner").value);
   $("launchRedeploy").parentElement.hidden = true;  // ora lo specchio aggiorna sempre i rig
   (l ? $("launchContent") : $("launchName")).focus();
@@ -437,7 +464,7 @@ async function saveLaunch() {
   }
   try {
     const d = await api("PUT", `catalog/launches/${encodeURIComponent(name)}`, {
-      miner: $("launchMiner").value, content: $("launchContent").value,
+      miner: $("launchMiner").value, content: $("launchContent").value, kind: $("launchKind").value,
     });
     $("launchForm").hidden = true; msg("error", "");
     refreshAll();
@@ -641,6 +668,8 @@ $("btnMinerSave").addEventListener("click", saveMiner);
 $("btnMinerCancel").addEventListener("click", () => { $("minerForm").hidden = true; });
 $("btnCheck").addEventListener("click", () => api("POST", "catalog/check").then(refreshCatalog).catch(e => msg("error", e.message)));
 $("btnNewLaunch").addEventListener("click", () => openLaunch(null));
+document.querySelectorAll(".kindseg button").forEach(b => b.addEventListener("click", () => setKindView(b.dataset.kind)));
+$("launchKind").addEventListener("change", () => { fillLaunchMiners(); if (!editingLaunch) $("launchContent").value = LAUNCH_TEMPLATE($("launchMiner").value); });
 $("launchMiner").addEventListener("change", () => { if (!editingLaunch) $("launchContent").value = LAUNCH_TEMPLATE($("launchMiner").value); });
 $("launchContent").addEventListener("input", () => {
   const m = minerFromContent($("launchContent").value);

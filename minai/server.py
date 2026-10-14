@@ -31,12 +31,19 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-VERSION = "0.9.29"
+VERSION = "0.9.31"
 ROOT = os.environ.get("MINERS_ROOT", "/opt/miners")
 CONF = f"{ROOT}/panel.json"
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
 DIR = f"{ROOT}/scripts"
 ACTIVE = f"{ROOT}/active.sh"
+STOPPED = f"{ROOT}/stopped"  # segno "fermato a mano": il miner non riparte al riavvio del rig
+# Un rig può minare con la GPU e con la CPU insieme: due "posti", ognuno con il suo servizio, il suo lancio attivo e il suo stato
+SLOTS = {
+    "gpu": {"svc": "miner.service", "active": ACTIVE, "stopped": STOPPED},
+    "cpu": {"svc": "miner-cpu.service", "active": f"{ROOT}/active-cpu.sh", "stopped": f"{ROOT}/stopped-cpu"},
+}
+KINDS_FILE = f"{ROOT}/kinds.json"   # tipo (gpu/cpu) di miner e lanci; quel che non c'è è GPU
 OC_FILE = f"{ROOT}/oc.json"
 AUTOFAN_FILE = f"{ROOT}/autofan.json"
 AUTOFAN_STATUS = os.environ.get("MINERS_AUTOFAN_STATUS", "/run/miner-autofan.json")
@@ -303,33 +310,66 @@ def run(args, timeout=30):
     return r.stdout
 
 
-def miner_state():
+def check_kind(kind):
+    if kind not in SLOTS:
+        raise ApiError(400, "Tipo non valido: gpu o cpu")
+    return kind
+
+
+def miner_state(kind="gpu"):
     """running: sta minando; failing: si ferma e riprova da solo; stopped: fermo."""
+    sl = SLOTS[kind]
     try:
-        r = subprocess.run(["systemctl", "is-active", SVC], capture_output=True, text=True, timeout=10)
+        r = subprocess.run(["systemctl", "is-active", sl["svc"]], capture_output=True, text=True, timeout=10)
         st = r.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return "stopped"
     if st == "active":
         return "running"
-    if active_launch() and not os.path.exists(STOPPED) and st in ("activating", "failed", "deactivating"):
+    if active_launch(kind) and not os.path.exists(sl["stopped"]) and st in ("activating", "failed", "deactivating"):
         return "failing"
     return "stopped"
 
 
-def is_running():
+def is_running(kind="gpu"):
     try:
-        r = subprocess.run(["systemctl", "is-active", SVC], capture_output=True, text=True, timeout=10)
+        r = subprocess.run(["systemctl", "is-active", SLOTS[kind]["svc"]], capture_output=True, text=True, timeout=10)
         return r.stdout.strip() == "active"
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
 
 
-def active_launch():
+def active_launch(kind="gpu"):
     try:
-        return os.path.basename(os.readlink(ACTIVE))
+        return os.path.basename(os.readlink(SLOTS[kind]["active"]))
     except OSError:
         return None
+
+
+def read_kinds():
+    d = read_json(KINDS_FILE, {})
+    return {"miners": dict(d.get("miners", {})), "launches": dict(d.get("launches", {}))}
+
+
+def kind_of(table, name):
+    return "cpu" if read_kinds()[table].get(name) == "cpu" else "gpu"
+
+
+def set_kind(table, name, kind):
+    d = read_kinds()
+    if kind == "cpu":
+        d[table][name] = "cpu"
+    else:
+        d[table].pop(name, None)
+    write_json(KINDS_FILE, d)
+
+
+def forget_kind(table, name, new=None):
+    d = read_kinds()
+    k = d[table].pop(name, None)
+    if new and k:
+        d[table][new] = k
+    write_json(KINDS_FILE, d)
 
 
 def check_miner(name):
@@ -606,43 +646,54 @@ SPEED_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([A-Za-z]{1,6}/s)(?![A-Za-z/])")
 NOT_SPEED = re.compile(r"^(?:[kKMGTP]i?)?(?:B|b|bit|bps)/s$|^it/s$")
 SPEED_KEY = re.compile(r"total|hashrate|speed", re.I)
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
-SPEED = {"value": None, "unit": None, "key": False}
-PER_GPU = {}   # indice GPU -> (valore, unità, ora)
 GPU_IN_LINE = re.compile(r"\bGPU\s*#?\s*(\d+)\b", re.I)
 GPU_VALUE = re.compile(r"\bGPU\s*#?\s*(\d+)\s*[:=]?\s+(\d+(?:[.,]\d+)?)(?![\d.,]*\s*(?:°|W\b|MHz|%))", re.I)
 TOTAL_IN_LINE = re.compile(r"\btotal|\[stats\]", re.I)
-SHARES = {"accepted": None, "rejected": None, "counted": True}
 SHARE_NUM = {k: re.compile(rf"\b{k}\b\s*[:=]?\s*(\d+)\b(?!\s*(?:ms|s\b|%))", re.I) for k in ("accepted", "rejected")}
 SHARE_WORD = {k: re.compile(rf"\b{k}\b", re.I) for k in ("accepted", "rejected")}
-HISTORY = collections.deque(maxlen=180)   # un campione ogni 10 s: ultimi 30 minuti
 HIST_STEP = 10
 
 
-def reset_speed():
-    SPEED.update(value=None, unit=None, key=False, total=False, time=0)
-    PER_GPU.clear()
-    SHARES.update(accepted=None, rejected=None, counted=True)
+class Track:
+    """Velocità, share e grafico di un miner (uno per la GPU e uno per la CPU)."""
+    def __init__(self):
+        self.speed = {"value": None, "unit": None, "key": False}
+        self.per_gpu = {}   # indice GPU -> (valore, unità, ora)
+        self.shares = {"accepted": None, "rejected": None, "counted": True}
+        self.history = collections.deque(maxlen=180)   # un campione ogni 10 s: ultimi 30 minuti
 
 
-def parse_shares(line):
+TRACKS = {k: Track() for k in SLOTS}
+
+
+def reset_speed(kind="gpu"):
+    t = TRACKS[kind]
+    t.speed.update(value=None, unit=None, key=False, total=False, time=0)
+    t.per_gpu.clear()
+    t.shares.update(accepted=None, rejected=None, counted=True)
+
+
+def parse_shares(line, t):
     nums = {k: rx.search(line) for k, rx in SHARE_NUM.items()}
     if nums["accepted"]:  # il miner scrive i contatori: valgono quelli
-        SHARES.update(accepted=int(nums["accepted"].group(1)), counted=False)
+        t.shares.update(accepted=int(nums["accepted"].group(1)), counted=False)
         if nums["rejected"]:
-            SHARES["rejected"] = int(nums["rejected"].group(1))
+            t.shares["rejected"] = int(nums["rejected"].group(1))
         return
-    if not SHARES["counted"] or not re.search(r"share", line, re.I):
+    if not t.shares["counted"] or not re.search(r"share", line, re.I):
         return
     for k, rx in SHARE_WORD.items():  # altrimenti si contano le righe "share accepted"
         if rx.search(line):
-            SHARES[k] = (SHARES[k] or 0) + 1
-            SHARES.setdefault("rejected", 0)
+            t.shares[k] = (t.shares[k] or 0) + 1
+            t.shares.setdefault("rejected", 0)
             return
 
 
-def parse_speed(line):
+def parse_speed(line, kind="gpu"):
+    t = TRACKS[kind]
+    SPEED, PER_GPU = t.speed, t.per_gpu
     line = ANSI_RE.sub("", line)
-    parse_shares(line)
+    parse_shares(line, t)
     found = [f for f in SPEED_RE.findall(line) if not NOT_SPEED.match(f[1])]
     if not found:
         return
@@ -661,7 +712,7 @@ def parse_speed(line):
         PER_GPU[int(tags[0])] = (float(value.replace(",", ".")), unit, now)
         if SPEED.get("total") and now - SPEED.get("time", 0) < 120:
             return
-        fresh = [v for v, u, t in PER_GPU.values() if u == unit and now - t < 120]
+        fresh = [v for v, u, tm in PER_GPU.values() if u == unit and now - tm < 120]
         SPEED.update(value=f"{sum(fresh):.2f}", unit=unit, key=True, total=False, time=now)
         return
     is_key = bool(SPEED_KEY.search(line))
@@ -670,43 +721,56 @@ def parse_speed(line):
     SPEED.update(value=value, unit=unit, key=SPEED["key"] or is_key, time=now)
 
 
-def speed_now():
+def speed_now(kind="gpu"):
     """Velocità attuale come numero, None se il miner è fermo o non la scrive da 5 minuti."""
-    if not SPEED.get("value") or time.time() - SPEED.get("time", 0) > 300:
+    sp = TRACKS[kind].speed
+    if not sp.get("value") or time.time() - sp.get("time", 0) > 300:
         return None
     try:
-        return float(str(SPEED["value"]).replace(",", "."))
+        return float(str(sp["value"]).replace(",", "."))
     except ValueError:
         return None
 
 
 def history_sampler():
     while True:
-        try:
-            HISTORY.append(round(speed_now(), 2) if speed_now() is not None and is_running() else None)
-        except Exception:
-            HISTORY.append(None)
+        for kind in SLOTS:
+            try:
+                v = speed_now(kind)
+                TRACKS[kind].history.append(round(v, 2) if v is not None and is_running(kind) else None)
+            except Exception:
+                TRACKS[kind].history.append(None)
         time.sleep(HIST_STEP)
 
 
-def speed_extra():
+def speed_extra(kind="gpu"):
     now = time.time()
-    unit = SPEED.get("unit")
-    return {"per_gpu": {str(i): v for i, (v, u, t) in sorted(PER_GPU.items()) if u == unit and now - t < 120},
-            "shares": {"accepted": SHARES["accepted"], "rejected": SHARES["rejected"] or 0} if SHARES["accepted"] is not None else None,
-            "history": list(HISTORY), "history_step": HIST_STEP}
+    t = TRACKS[kind]
+    unit = t.speed.get("unit")
+    return {"per_gpu": {str(i): v for i, (v, u, tm) in sorted(t.per_gpu.items()) if u == unit and now - tm < 120},
+            "shares": {"accepted": t.shares["accepted"], "rejected": t.shares["rejected"] or 0} if t.shares["accepted"] is not None else None,
+            "history": list(t.history), "history_step": HIST_STEP}
 
 
-def speed_follower():
+def speed_follower(kind="gpu"):
     while True:
         try:
-            p = subprocess.Popen(["journalctl", "-u", SVC, "-f", "-n", "100", "-o", "cat", "--no-pager"],
+            p = subprocess.Popen(["journalctl", "-u", SLOTS[kind]["svc"], "-f", "-n", "100", "-o", "cat", "--no-pager"],
                                  stdout=subprocess.PIPE, text=True, errors="replace")
             for line in p.stdout:
-                parse_speed(line)
+                parse_speed(line, kind)
         except FileNotFoundError:
             return
         time.sleep(5)
+
+
+def slot_status(kind):
+    sl = SLOTS[kind]
+    state = miner_state(kind)
+    sp = TRACKS[kind].speed
+    return {"running": state == "running", "state": state, "stopped": os.path.exists(sl["stopped"]),
+            "active": active_launch(kind),
+            "speed": {"value": sp["value"], "unit": sp["unit"]} if sp["value"] else None, **speed_extra(kind)}
 
 
 def api_status(_):
@@ -717,8 +781,8 @@ def api_status(_):
             "active": test["base"] if test else active_launch(), "test": test, "bin": BIN,
             "host": socket.gethostname(), "sys": dict(SYS),
             "version": VERSION, "driver": nvidia_driver(),
-            "speed": {"value": SPEED["value"], "unit": SPEED["unit"]} if SPEED["value"] else None,
-            **speed_extra(),
+            "speed": {"value": TRACKS["gpu"].speed["value"], "unit": TRACKS["gpu"].speed["unit"]} if TRACKS["gpu"].speed["value"] else None,
+            **speed_extra("gpu"), "cpu": slot_status("cpu"),
             "update": latest_with("minai.zip") if newer(latest_with("minai.zip"), VERSION) else None,
             "updating": unit_active("minai-selfupdate"),
             "managed": managed(),
@@ -737,7 +801,7 @@ def api_miners(_):
                         src = f.read().strip()
                 except OSError:
                     src = ""
-                items.append({"name": n, "source": src})
+                items.append({"name": n, "source": src, "kind": kind_of("miners", n)})
     with UPD_LOCK:
         updates = dict(UPDATES)
         state = dict(UPD)
@@ -748,6 +812,7 @@ def api_install(body):
     global JOB
     name, url = str(body.get("name", "")).strip(), str(body.get("url", "")).strip()
     check_miner(name)
+    kind = check_kind(body["kind"]) if "kind" in body else None   # senza tipo (aggiornamento) resta quello di prima
     if not re.match(r"^https?://", url):
         raise ApiError(400, "Il link deve iniziare con http:// o https://")
     if PAGE_RE.search(url):
@@ -756,6 +821,8 @@ def api_install(body):
         if JOB and JOB["state"] == "running":
             raise ApiError(409, f"Installazione di {JOB['name']} già in corso")
         JOB = {"name": name, "state": "running", "output": ""}
+    if kind:
+        set_kind("miners", name, kind)
     threading.Thread(target=install_job, args=(name, url), daemon=True).start()
     return {"started": True}
 
@@ -764,6 +831,15 @@ def api_miner_delete(name):
     path = check_miner(name)
     if os.path.isdir(path):
         run(["rm", "-rf", "--", path])
+    forget_kind("miners", name)
+    return {"ok": True}
+
+
+def api_miner_kind(name, body):
+    path = check_miner(name)
+    if not os.path.isdir(path):
+        raise ApiError(404, "Miner non trovato")
+    set_kind("miners", name, check_kind(body.get("kind")))
     return {"ok": True}
 
 
@@ -778,6 +854,7 @@ def api_miner_rename(name, body):
     if os.path.exists(dest):
         raise ApiError(409, f"Esiste già {new}")
     os.rename(path, dest)  # stessa cartella, nome nuovo: modelli e dati restano
+    forget_kind("miners", name, new)
     return {"ok": True}
 
 
@@ -804,7 +881,7 @@ def api_launches(_):
                     m = re.search(re.escape(BIN) + r"/([A-Za-z0-9._-]+)", fh.read())
             except OSError:
                 m = None
-            items.append({"file": f, "miner": m.group(1) if m else ""})
+            items.append({"file": f, "miner": m.group(1) if m else "", "kind": kind_of("launches", f)})
     return {"launches": items}
 
 
@@ -822,24 +899,30 @@ def api_launch_put(name, body):
     with open(path, "w") as f:
         f.write(str(body.get("content", "")))
     os.chmod(path, 0o755)
-    if name == active_launch() and not os.path.exists(STOPPED):
-        run(["systemctl", "restart", SVC])  # riparte subito, anche se stava fallendo
+    if "kind" in body:   # il tipo si cambia solo se lo si indica; un lancio nuovo senza tipo è GPU
+        set_kind("launches", name, check_kind(body["kind"]))
+    kind = kind_of("launches", name)
+    sl = SLOTS[kind]
+    if name == active_launch(kind) and not os.path.exists(sl["stopped"]):
+        run(["systemctl", "restart", sl["svc"]])  # riparte subito, anche se stava fallendo
     return {"ok": True}
 
 
 def api_launch_delete(name):
     path = check_launch(name)
-    if name == active_launch():
-        if is_running():
-            raise ApiError(409, "Ferma il miner prima di eliminare il lancio in uso.")
-        try:
-            os.remove(ACTIVE)
-        except OSError:
-            pass
+    for kind, sl in SLOTS.items():
+        if name == active_launch(kind):
+            if is_running(kind):
+                raise ApiError(409, "Ferma il miner prima di eliminare il lancio in uso.")
+            try:
+                os.remove(sl["active"])
+            except OSError:
+                pass
     try:
         os.remove(path)
     except FileNotFoundError:
         pass
+    forget_kind("launches", name)
     return {"ok": True}
 
 
@@ -850,31 +933,34 @@ def api_launch_start(name):
     path = check_launch(name)
     if not os.path.isfile(path):
         raise ApiError(404, "Lancio non trovato")
-    tmp = f"{ACTIVE}.tmp"
+    kind = kind_of("launches", name)
+    sl = SLOTS[kind]
+    tmp = f"{sl['active']}.tmp"
     try:
         os.remove(tmp)
     except OSError:
         pass
     os.symlink(path, tmp)
-    os.replace(tmp, ACTIVE)
-    reset_speed()
+    os.replace(tmp, sl["active"])
+    reset_speed(kind)
     try:
-        os.remove(STOPPED)
+        os.remove(sl["stopped"])
     except FileNotFoundError:
         pass
-    run(["systemctl", "restart", SVC])
+    run(["systemctl", "restart", sl["svc"]])
     return {"ok": True}
 
 
-def api_stop():
-    open(STOPPED, "w").close()
-    run(["systemctl", "stop", SVC])
+def api_stop(kind="gpu"):
+    sl = SLOTS[check_kind(kind)]
+    open(sl["stopped"], "w").close()
+    run(["systemctl", "stop", sl["svc"]])
     return {"ok": True}
 
 
 def api_log(query):
     cursor = query.get("cursor", [""])[0]
-    args = ["journalctl", "-u", SVC, "-o", "json", "--no-pager"]
+    args = ["journalctl", "-u", SLOTS[check_kind(query.get("kind", ["gpu"])[0])]["svc"], "-o", "json", "--no-pager"]
     args += ["--after-cursor", cursor] if cursor else ["-n", "200"]
     try:
         out = subprocess.run(args, capture_output=True, text=True, timeout=15).stdout
@@ -992,6 +1078,13 @@ def api_power(body):
     return {"ok": True}
 
 
+def write_json(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f)
+    os.replace(tmp, path)
+
+
 def read_json(path, default):
     try:
         with open(path) as f:
@@ -1095,8 +1188,37 @@ def api_rename(body):
     return {"host": set_rig_name(str(body.get("name", "")))}
 
 
+def ssh_status():
+    """SSH: installato e acceso? (su Ubuntu 24.04 parte tramite ssh.socket)"""
+    installed = os.path.exists("/usr/sbin/sshd")
+    def on(unit):
+        return subprocess.run(["systemctl", "is-enabled", unit], capture_output=True, text=True, timeout=10).stdout.strip() == "enabled"
+    return {"installed": installed, "enabled": installed and (on("ssh.socket") or on("ssh.service") or on("ssh")),
+            "user": OWNER, "host": socket.gethostname()}
+
+
+def api_ssh(body):
+    want = bool(body.get("enabled"))
+    if want:
+        if not os.path.exists("/usr/sbin/sshd"):
+            r = subprocess.run(["apt-get", "install", "-y", "-q", "openssh-server"], capture_output=True, text=True, timeout=240,
+                               env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"})
+            if r.returncode:
+                raise ApiError(500, "Impossibile installare SSH: " + (r.stderr or r.stdout).strip().splitlines()[-1][:200])
+        for unit in ("ssh.socket", "ssh.service"):
+            subprocess.run(["systemctl", "enable", "--now", unit], capture_output=True, text=True, timeout=30)
+        print("SSH acceso dal pannello", flush=True)
+    else:
+        subprocess.run(["systemctl", "disable", "--now", "ssh.socket", "ssh.service"], capture_output=True, text=True, timeout=30)
+        print("SSH spento dal pannello", flush=True)
+    st = ssh_status()
+    if want and not st["enabled"]:
+        raise ApiError(500, "SSH non è partito: controlla con journalctl -u ssh")
+    return st
+
+
 def api_settings(_):
-    return {"tailscale": ts_status(), "token": API_TOKEN, "host": socket.gethostname(), "port": PORT, "version": VERSION}
+    return {"tailscale": ts_status(), "ssh": ssh_status(), "token": API_TOKEN, "host": socket.gethostname(), "port": PORT, "version": VERSION}
 
 
 def api_ts_up(body):
@@ -1218,6 +1340,8 @@ ROUTES = [
     ("DELETE", r"launches/([^/]+)", api_launch_delete),
     ("POST", r"launches/([^/]+)/start", api_launch_start),
     ("POST", r"stop", api_stop),
+    ("POST", r"stop/(gpu|cpu)", api_stop),
+    ("POST", r"miners/([^/]+)/kind", api_miner_kind),
     ("GET", r"log", api_log),
     ("GET", r"gpus", api_gpus),
     ("PUT", r"gpus/(\d+)", api_gpu_enable),
@@ -1233,6 +1357,7 @@ ROUTES = [
     ("POST", r"rename", api_rename),
     ("POST", r"selfupdate", api_selfupdate),
     ("POST", r"selfcheck", api_selfcheck),
+    ("POST", r"ssh", api_ssh),
     ("POST", r"tailscale/up", api_ts_up),
     ("POST", r"tailscale/logout", api_ts_logout),
     ("GET", r"autofan", api_autofan_get),
@@ -1400,11 +1525,11 @@ class Handler(BaseHTTPRequestHandler):
             for m, pattern, fn in ROUTES:
                 match = re.fullmatch(pattern, path)
                 if m == method and match:
-                    if fn in (api_install, api_miner_delete, api_launch_put, api_launch_delete) \
+                    if fn in (api_install, api_miner_delete, api_miner_kind, api_launch_put, api_launch_delete) \
                             and managed() and not self.from_server:
                         raise ApiError(409, "Miner e lanci sono gestiti da minai-server: modificali da lì")
                     args = list(match.groups())
-                    if fn in (api_install, api_launch_put, api_oc_put, api_power, api_autofan_put, api_ts_up, api_rename, api_gpu_enable, api_test_start, api_test_end, api_miner_rename):
+                    if fn in (api_install, api_launch_put, api_oc_put, api_power, api_autofan_put, api_ts_up, api_ssh, api_miner_kind, api_rename, api_gpu_enable, api_test_start, api_test_end, api_miner_rename):
                         args.append(self.body())
                     elif method == "GET" and not args:
                         args.append(parse_qs(url.query))
@@ -1433,7 +1558,8 @@ if __name__ == "__main__":
     srv.daemon_threads = True
     threading.Thread(target=update_loop, daemon=True).start()
     threading.Thread(target=sys_sampler, daemon=True).start()
-    threading.Thread(target=speed_follower, daemon=True).start()
+    for _k in SLOTS:
+        threading.Thread(target=speed_follower, args=(_k,), daemon=True).start()
     threading.Thread(target=history_sampler, daemon=True).start()
     threading.Thread(target=setup_beacon, daemon=True).start()
     threading.Thread(target=test_watchdog, daemon=True).start()

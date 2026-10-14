@@ -34,7 +34,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
-VERSION = "0.9.29"
+VERSION = "0.9.31"
 ROOT = os.environ.get("MINAI_SERVER_ROOT", "/opt/minai-server")
 CONF = f"{ROOT}/config.json"
 DB = f"{ROOT}/minai.db"
@@ -149,6 +149,9 @@ with DB_LOCK, db() as _con:
         miner TEXT NOT NULL,
         content TEXT NOT NULL,
         updated INTEGER NOT NULL)""")
+for _t in ("miners", "launches"):  # catalogo con tipo GPU/CPU (assente = gpu)
+    if "kind" not in [r[1] for r in _con.execute(f"PRAGMA table_info({_t})")]:
+        _con.execute(f"ALTER TABLE {_t} ADD COLUMN kind TEXT NOT NULL DEFAULT 'gpu'")
 os.chmod(DB, 0o600)
 
 
@@ -355,8 +358,8 @@ SYNC_EVENT = threading.Event()
 
 def catalog_rows():
     with DB_LOCK, db() as con:
-        miners = [tuple(r) for r in con.execute("SELECT name, url FROM miners ORDER BY name")]
-        launches = [tuple(r) for r in con.execute("SELECT name, miner, content FROM launches ORDER BY name")]
+        miners = [tuple(r) for r in con.execute("SELECT name, url, kind FROM miners ORDER BY name")]
+        launches = [tuple(r) for r in con.execute("SELECT name, miner, content, kind FROM launches ORDER BY name")]
         renames = [tuple(r) for r in con.execute("SELECT old, new FROM renames ORDER BY rowid")]
     return miners, launches, renames
 
@@ -400,10 +403,17 @@ def sync_rig(rig, wait=False):
             return
         state("running", "Allineo")
         miners, launches, renames = rows
-        cat_m = dict(miners)
-        cat_l = {n: {"miner": m, "content": c} for n, m, c in launches}
-        bin_dir, active, stopped = status["bin"], status.get("active"), status.get("stopped")
-        have = {m["name"]: m["source"] for m in agent_call(rig, "GET", "miners")["miners"]}
+        cat_m = {n: u for n, u, _k in miners}
+        cat_mk = {n: k for n, _u, k in miners}
+        cat_l = {n: {"miner": m, "content": c, "kind": k} for n, m, c, k in launches}
+        bin_dir = status["bin"]
+        cpu_st = status.get("cpu") or {}
+        # lanci attivi (GPU e CPU) e se sono fermati a mano
+        actives = {f for f in (status.get("active"), cpu_st.get("active")) if f}
+        halted = {f for f, st in ((status.get("active"), status.get("stopped")), (cpu_st.get("active"), cpu_st.get("stopped"))) if f and st}
+        rig_miners = agent_call(rig, "GET", "miners")["miners"]
+        have = {m["name"]: m["source"] for m in rig_miners}
+        have_k = {m["name"]: m.get("kind", "gpu") for m in rig_miners}
         renamed_away = {old for old, _ in renames}
         # 1. rinomine: la cartella cambia nome, modelli e dati restano
         for old, new in renames:
@@ -418,35 +428,45 @@ def sync_rig(rig, wait=False):
         for name, url in cat_m.items():
             if have.get(name) != url:
                 state("running", f"Installo {name}")
-                agent_call(rig, "POST", "miners", {"name": name, "url": url})
+                agent_call(rig, "POST", "miners", {"name": name, "url": url, "kind": cat_mk[name]})
                 wait_install(rig, name)
                 have[name] = url
                 reinstalled.add(name)
+            if name in have_k and have_k[name] != cat_mk[name] and any("kind" in m for m in rig_miners):
+                try:
+                    agent_call(rig, "POST", f"miners/{name}/kind", {"kind": cat_mk[name]})
+                except (urllib.error.HTTPError, RuntimeError):
+                    pass
         # 3. lanci nuovi o modificati (il rig riavvia da solo quello attivo)
         rig_launches = {x["file"]: x for x in agent_call(rig, "GET", "launches")["launches"]}
         for name, l in cat_l.items():
             file = f"{name}.sh"
             content = render(l["content"], rig, bin_dir, l["miner"])
             current = None
-            if file in rig_launches:
+            wanted = l["kind"]
+            if file in rig_launches and rig_launches[file].get("kind", wanted) != wanted:
+                pass  # tipo cambiato: riscrivo il lancio
+            elif file in rig_launches:
                 try:
                     current = agent_call(rig, "GET", f"launches/{file}").get("content")
                 except urllib.error.HTTPError:
                     current = None
             if current != content:
                 state("running", f"Scrivo {name}")
-                agent_call(rig, "PUT", f"launches/{file}", {"content": content})
-            elif l["miner"] in reinstalled and file == active and not stopped:
+                agent_call(rig, "PUT", f"launches/{file}", {"content": content, "kind": wanted})
+            elif l["miner"] in reinstalled and file in actives and file not in halted:
                 agent_call(rig, "POST", f"launches/{file}/start", {})  # nuova versione del miner
         # 4. via quello che non è più nel catalogo (mai il lancio attivo e il suo miner)
-        active_miner = (cat_l.get(active[:-3]) or {}).get("miner") if active else None
-        if active and not active_miner:
-            active_miner = (rig_launches.get(active) or {}).get("miner")
+        active_miners = set()
+        for a in actives:
+            am = (cat_l.get(a[:-3]) or {}).get("miner") or (rig_launches.get(a) or {}).get("miner")
+            if am:
+                active_miners.add(am)
         for file in set(rig_launches) - {f"{n}.sh" for n in cat_l}:
-            if file != active:
+            if file not in actives:
                 agent_call(rig, "DELETE", f"launches/{file}")
         for name in set(have) - set(cat_m):
-            if name != active_miner and name not in renamed_away:
+            if name not in active_miners and name not in renamed_away:
                 state("running", f"Tolgo {name}")
                 agent_call(rig, "DELETE", f"miners/{name}")
         SYNC[rid] = {"hash": h, "state": "ok", "msg": "", "time": int(time.time())}
@@ -499,11 +519,15 @@ def rigs_using(launch_name):
     out = []
     for rid, snap in SNAP.items():
         st = snap.get("status") or {}
-        if not snap.get("online") or st.get("active") != f"{launch_name}.sh":
+        if not snap.get("online"):
             continue
-        stopped = st["stopped"] if "stopped" in st else not st.get("running")  # rig con minai < 0.9.18
-        if not stopped:
-            out.append(rid)
+        for slot in (st, st.get("cpu") or {}):
+            if slot.get("active") != f"{launch_name}.sh":
+                continue
+            stopped = slot["stopped"] if "stopped" in slot else not slot.get("running")  # rig con minai < 0.9.18
+            if not stopped:
+                out.append(rid)
+                break
     return out
 
 
@@ -526,8 +550,11 @@ def api_miner_put(name, body):
         raise ApiError(400, "Il link deve iniziare con http:// o https://")
     if re.search(r"github\.com/[^/]+/[^/]+/?(?:$|releases/?$|releases/tag/|tree/|blob/)", url):
         raise ApiError(400, "Questo è il link di una pagina: apri la release e copia il link del file (.tar.gz o .zip)")
+    kind = body.get("kind")
+    if kind is not None and kind not in ("gpu", "cpu"):
+        raise ApiError(400, "Tipo non valido")
     with DB_LOCK, db() as con:
-        con.execute("INSERT INTO miners (name, url) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET url = excluded.url", (name, url))
+        con.execute("INSERT INTO miners (name, url, kind) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET url = excluded.url, kind = COALESCE(?, kind)", (name, url, kind or "gpu", kind))
     with UPD_LOCK:
         CAT_UPD.pop(name, None)
     catalog_changed()
@@ -577,10 +604,13 @@ def api_launch_put(name, body):
     if not get_miner(miner):
         raise ApiError(400, "Scegli un miner del catalogo")
     content = str(body.get("content", ""))
+    kind = body.get("kind") or get_miner(miner).get("kind") or "gpu"
+    if kind not in ("gpu", "cpu"):
+        raise ApiError(400, "Tipo non valido")
     with DB_LOCK, db() as con:
-        con.execute("""INSERT INTO launches (name, miner, content, updated) VALUES (?, ?, ?, ?)
+        con.execute("""INSERT INTO launches (name, miner, content, updated, kind) VALUES (?, ?, ?, ?, ?)
                        ON CONFLICT(name) DO UPDATE SET miner = excluded.miner, content = excluded.content,
-                       updated = excluded.updated""", (name, miner, content, int(time.time())))
+                       updated = excluded.updated, kind = excluded.kind""", (name, miner, content, int(time.time()), kind))
     catalog_changed()  # lo specchio lo scrive su tutti i rig; dove è attivo riparte
     return {"ok": True}
 
@@ -591,7 +621,7 @@ def api_launch_delete(name):
         rig = get_rig(rid)
         if rig:
             try:
-                agent_call(rig, "POST", "stop", {})
+                agent_call(rig, "POST", f"stop/{(get_launch(name) or {}).get('kind') or 'gpu'}", {})
             except (OSError, ValueError, urllib.error.HTTPError):
                 pass
     with DB_LOCK, db() as con:
@@ -632,7 +662,7 @@ def api_import(rid):
     with DB_LOCK, db() as con:
         for m in miners:
             if m.get("source") and m["name"] not in known:
-                con.execute("INSERT INTO miners (name, url) VALUES (?, ?)", (m["name"], m["source"]))
+                con.execute("INSERT INTO miners (name, url, kind) VALUES (?, ?, ?)", (m["name"], m["source"], m.get("kind", "gpu")))
                 added_m += 1
     have_l = {l["name"] for l in catalog_launches()}
     for l in launches:
@@ -644,8 +674,8 @@ def api_import(rid):
             if len(word) >= 3:
                 content = re.sub(rf"(?<![A-Za-z0-9_-]){re.escape(word)}(?![A-Za-z0-9_-])", "%WORKER_NAME%", content)
         with DB_LOCK, db() as con:
-            con.execute("INSERT INTO launches (name, miner, content, updated) VALUES (?, ?, ?, ?)",
-                        (name, l["miner"], content, int(time.time())))
+            con.execute("INSERT INTO launches (name, miner, content, updated, kind) VALUES (?, ?, ?, ?, ?)",
+                        (name, l["miner"], content, int(time.time()), l.get("kind", "gpu")))
         added_l += 1
     return {"miners": added_m, "launches": added_l}
 

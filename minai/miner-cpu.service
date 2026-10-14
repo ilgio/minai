@@ -1,0 +1,23 @@
+[Unit]
+Description=Miner CPU attivo (lancio scelto dal pannello minai)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/miners/active-cpu.sh
+# fermato a mano dal pannello: resta fermo anche dopo un riavvio del rig
+ConditionPathExists=!/opt/miners/stopped-cpu
+
+[Service]
+# il miner gira come utente normale, non come root: un miner difettoso o malevolo non tocca il sistema
+User=OWNER_USER
+Group=OWNER_GROUP
+Environment=HOME=OWNER_HOME
+# cartella temporanea in /run/minai, scrivibile dal miner
+RuntimeDirectory=minai-cpu
+# script crea un terminale virtuale: il miner scrive subito ogni riga invece di accumularle
+Environment=TERM=xterm
+ExecStart=/usr/bin/script -qfec "/bin/bash /opt/miners/run-launch.sh cpu" /dev/null
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

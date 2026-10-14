@@ -11,6 +11,9 @@ const SERVER_HOME = location.pathname.replace(/\/rig\/[^/]+\/.*$/, "/");
 const enc = encodeURIComponent;
 let active = null, running = false, editing = null, miners = [], binDir = "", launchMiners = {};
 let minerState = "stopped";
+// GPU o CPU: un rig può minare con tutte e due, ognuna con il suo miner, il suo lancio e la sua velocità
+let kindView = "gpu", cpuSt = null, launchKinds = {}, minerKinds = {};
+try { if (localStorage.getItem("minai-kind") === "cpu") kindView = "cpu"; } catch {}
 let oc = {}, ocGpu = null, installPoll = null, checkPoll = null, started = false, managed = false;
 
 /* ---------- richieste al server ---------- */
@@ -121,6 +124,7 @@ async function refreshStatus() {
   $("startHint").hidden = !(s.managed && !s.active);
   $("driverVersion").textContent = s.driver ? `Driver NVIDIA ${s.driver}` : "";
   showSpeed(s);
+  showCpu(s.cpu);
   const af = s.autofan || {};
   $("btnFan").classList.toggle("on", !!af.enabled);
   $("fanLabel").textContent = af.enabled ? `${af.target}°` : "";
@@ -134,12 +138,50 @@ async function refreshStatus() {
   minerState = st;
   if (s.test) $("state").textContent += " · Lancio di prova";
   $("testBanner").hidden = !(s.test && managed && VIA_SERVER && $("liveEditor").hidden);
-  $("btnEditActive").hidden = !active || (managed && !VIA_SERVER);
+  $("btnEditActive").hidden = kindView === "cpu" || !active || (managed && !VIA_SERVER);
   $("activeName").textContent = active ? active.replace(/\.sh$/, "") : "nessun lancio attivo";
   $("btnStop").disabled = st === "stopped";
   $("speed").hidden = !running || !$("speed").textContent;
   showSys(s.sys || {});
 }
+
+/* ---------- CPU: riquadro nella scheda Generale e selettore GPU | CPU ---------- */
+function hasCpu() {
+  return !!(cpuSt && cpuSt.active) || Object.values(launchKinds).includes("cpu") || Object.values(minerKinds).includes("cpu");
+}
+function showCpu(c) {
+  cpuSt = c || null;
+  $("logKindBox").hidden = !(hasCpu() || kindView === "cpu");
+  const on = !!(c && c.active);
+  $("cpuBox").hidden = !on;
+  if (!on) return;
+  const st = c.state;
+  $("cpuDot").className = "dot " + (st === "running" ? "on" : st === "failing" ? "fail" : "off");
+  $("cpuName").textContent = c.active.replace(/\.sh$/, "") + (st === "failing" ? " · errore, riprovo…" : st === "stopped" ? " · fermo" : "");
+  const sp = c.running && c.speed && c.speed.value ? c.speed : null;
+  if (sp) {
+    const small = document.createElement("small");
+    small.textContent = sp.unit;
+    $("cpuSpeed").replaceChildren(document.createTextNode(sp.value), small);
+  } else $("cpuSpeed").replaceChildren();
+  $("btnCpuStop").hidden = st === "stopped";
+}
+function markKindSeg() {
+  for (const b of document.querySelectorAll(".kindseg button")) b.classList.toggle("on", b.dataset.kind === kindView);
+}
+function setKindView(k) {
+  if (k === kindView) return;
+  kindView = k;
+  try { localStorage.setItem("minai-kind", k); } catch {}
+  markKindSeg();
+  logLines.length = 0; logCursor = ""; $("log").textContent = "";   // il log è quello del tipo scelto
+  $("btnEditActive").hidden = kindView === "cpu" || !active || (managed && !VIA_SERVER);
+  $("logKindBox").hidden = !(hasCpu() || kindView === "cpu");
+  refreshMiners().catch(() => {}); refreshLaunches().catch(() => {});
+  pollLog();
+}
+for (const b of document.querySelectorAll(".kindseg button")) b.addEventListener("click", () => setKindView(b.dataset.kind));
+markKindSeg();
 
 // Numero grande, grafico degli ultimi 30 minuti, share ed efficienza
 const fmtNum = v => v >= 1000 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
@@ -225,16 +267,18 @@ for (const a of document.querySelectorAll(".gotoServer")) {
 async function refreshMiners() {
   const d = await api("GET", "miners");
   miners = d.miners;
+  minerKinds = Object.fromEntries(miners.map(m => [m.name, m.kind || "gpu"]));
+  const shown = miners.filter(m => (m.kind || "gpu") === kindView);
   const body = $("miners");
   body.replaceChildren();
-  $("noMiners").hidden = miners.length > 0;
+  $("noMiners").hidden = shown.length > 0;
   $("noMiners").textContent = managed
     ? "Nessun miner ancora: vengono installati da soli quando avvii un lancio da minai-server (Lanci → Avvia su…)."
-    : "Nessun miner installato.";
+    : kindView === "cpu" ? "Nessun miner CPU installato." : "Nessun miner installato.";
   $("countMiners").textContent = miners.length || "";
   const updates = d.updates || {};
-  let pending = 0;
-  for (const m of miners) {
+  let pending = miners.filter(m => (updates[m.name] || {}).update).length;
+  for (const m of shown) {
     const u = updates[m.name] || {};
     const label = document.createElement("span");
     label.textContent = m.name;
@@ -245,7 +289,6 @@ async function refreshMiners() {
     }
     const actions = [];
     if (u.update) {
-      pending++;
       const n = document.createElement("span");
       n.className = "badge upd"; n.textContent = `nuova ${u.latest}`;
       label.append(n);
@@ -254,6 +297,7 @@ async function refreshMiners() {
     }
     if (managed) actions.length = 0;
     else actions.push(button("Modifica link", () => openMinerForm(m.name, m.source)),
+                      button(m.kind === "cpu" ? "Sposta in GPU" : "Sposta in CPU", () => setMinerKind(m.name, m.kind === "cpu" ? "gpu" : "cpu")),
                       button("Elimina", () => removeMiner(m.name), "danger"));
     const tr = row([label, m.source || "—"], actions);
     tr.children[1].className = "src";
@@ -268,8 +312,20 @@ async function refreshMiners() {
   $("btnCheck").disabled = d.checking;
   if (d.checking && !checkPoll) checkPoll = setInterval(() => refreshMiners().catch(() => {}), 2000);
   if (!d.checking && checkPoll) { clearInterval(checkPoll); checkPoll = null; }
-  $("launchMiner").replaceChildren(...miners.map(m => new Option(m.name, m.name)));
+  fillLaunchMiners();
+  showCpu(cpuSt);
   handleJob(d.job);
+}
+
+async function setMinerKind(name, kind) {
+  try { await api("POST", `miners/${enc(name)}/kind`, { kind }); } catch (e) { showError(e); }
+  refreshMiners().catch(showError);
+}
+// i miner tra cui scegliere per un nuovo lancio: quelli del tipo selezionato
+function fillLaunchMiners() {
+  const k = $("launchKind").value || kindView, sel = $("launchMiner").value;
+  $("launchMiner").replaceChildren(...miners.filter(m => (m.kind || "gpu") === k).map(m => new Option(m.name, m.name)));
+  if (sel) $("launchMiner").value = sel;
 }
 
 function handleJob(job) {
@@ -298,6 +354,7 @@ function openMinerForm(name, url) {
   $("minerName").value = name || "";
   $("minerName").disabled = !!name;
   $("minerUrl").value = url || "";
+  $("minerKind").value = name ? (minerKinds[name] || "gpu") : kindView;
   (name ? $("minerUrl") : $("minerName")).focus();
 }
 
@@ -308,7 +365,7 @@ async function installMiner() {
   if (!/^https?:\/\//.test(url)) return showError(new Error("Il link deve iniziare con http:// o https://"));
   showError(null);
   try {
-    await api("POST", "miners", { name, url });
+    await api("POST", "miners", { name, url, kind: $("minerKind").value });
     await refreshMiners();
   } catch (e) { showError(e); }
 }
@@ -351,18 +408,21 @@ async function newTemplate(miner) {
 async function refreshLaunches() {
   const { launches } = await api("GET", "launches");
   launchMiners = Object.fromEntries(launches.map(l => [l.file, l.miner]));
+  launchKinds = Object.fromEntries(launches.map(l => [l.file, l.kind || "gpu"]));
+  const shown = launches.filter(l => (l.kind || "gpu") === kindView);
   const body = $("launches");
   body.replaceChildren();
-  $("noLaunches").hidden = launches.length > 0;
+  $("noLaunches").hidden = shown.length > 0;
   $("noLaunches").textContent = managed
     ? "Nessun lancio ancora: su minai-server vai su Lanci → Avvia su… e scegli questo rig."
     : "Nessun lancio. Crea il primo con “Nuovo lancio”.";
   $("countLaunches").textContent = launches.length || "";
   // il lancio in uso sempre per primo, poi gli altri in ordine alfabetico
-  const sorted = [...launches].sort((a, b) => (b.file === active) - (a.file === active) || a.file.localeCompare(b.file));
+  const act = kindView === "cpu" ? (cpuSt && cpuSt.active) : active, run = kindView === "cpu" ? !!(cpuSt && cpuSt.running) : running;
+  const sorted = [...shown].sort((a, b) => (b.file === act) - (a.file === act) || a.file.localeCompare(b.file));
   for (const { file, miner } of sorted) {
-    const isActive = file === active;
-    const inUse = isActive && running;
+    const isActive = file === act;
+    const inUse = isActive && run;
     const label = document.createElement("span");
     label.textContent = file.replace(/\.sh$/, "");
     if (inUse) {
@@ -371,7 +431,7 @@ async function refreshLaunches() {
       label.append(b);
     }
     body.append(row([label, miner || "—"], [
-      ...(inUse ? [button("Ferma", stop)] : []),
+      ...(inUse ? [button("Ferma", () => stop(kindView))] : []),
       button(inUse ? "Riavvia" : "Avvia", () => activate(file), "primary"),
       ...(managed ? [] : [button("Modifica", () => openEditor(file)), button("Elimina", () => removeLaunch(file), "danger")]),
     ], isActive ? "active" : ""));
@@ -379,13 +439,13 @@ async function refreshLaunches() {
 }
 
 async function activate(file) {
-  $("speed").textContent = "";
+  if ((launchKinds[file] || "gpu") === "gpu") $("speed").textContent = "";
   try { await api("POST", `launches/${enc(file)}/start`); } catch (e) { showError(e); }
   refresh();
 }
 
-async function stop() {
-  try { await api("POST", "stop"); } catch (e) { showError(e); }
+async function stop(kind) {
+  try { await api("POST", kind === "cpu" ? "stop/cpu" : "stop"); } catch (e) { showError(e); }
   refresh();
 }
 
@@ -394,7 +454,10 @@ async function openEditor(file) {
   $("editor").hidden = false;
   $("newFields").hidden = !!file;
   $("editorTitle").textContent = file ? `Modifica ${file.replace(/\.sh$/, "")}` : "Nuovo lancio";
-  $("btnSave").textContent = file && file === active && running ? "Salva e riavvia" : "Salva";
+  $("launchKind").value = file ? (launchKinds[file] || "gpu") : kindView;
+  fillLaunchMiners();
+  const k = $("launchKind").value, cur = k === "cpu" ? cpuSt : { active, running };
+  $("btnSave").textContent = file && cur && file === cur.active && cur.running ? "Salva e riavvia" : "Salva";
   if (file) {
     try { $("content").value = (await api("GET", `launches/${enc(file)}`)).content; }
     catch (e) { showError(e); }
@@ -402,7 +465,7 @@ async function openEditor(file) {
   } else {
     if (!miners.length) showError(new Error("Installa prima almeno un miner."));
     $("launchName").value = "";
-    $("content").value = miners.length ? await newTemplate($("launchMiner").value) : "";
+    $("content").value = $("launchMiner").value ? await newTemplate($("launchMiner").value) : "";
     $("launchName").focus();
   }
 }
@@ -416,7 +479,7 @@ async function saveLaunch() {
     if (!LAUNCH_RE.test(file)) return showError(new Error("Nome lancio non valido: lettere, numeri, . _ -"));
   }
   try {
-    await api("PUT", `launches/${enc(file)}`, { content: $("content").value });
+    await api("PUT", `launches/${enc(file)}`, { content: $("content").value, kind: $("launchKind").value });
     closeEditor();
     showError(null);
   } catch (e) { showError(e); }
@@ -424,7 +487,8 @@ async function saveLaunch() {
 }
 
 async function removeLaunch(file) {
-  if (file === active && running) return showError(new Error("Ferma il miner prima di eliminare il lancio in uso."));
+  const cpu = (launchKinds[file] || "gpu") === "cpu";
+  if (file === (cpu ? cpuSt && cpuSt.active : active) && (cpu ? cpuSt.running : running)) return showError(new Error("Ferma il miner prima di eliminare il lancio in uso."));
   if (!await ask(`Eliminare il lancio ${file.replace(/\.sh$/, "")}?`, { ok: "Elimina", danger: true })) return;
   try { await api("DELETE", `launches/${enc(file)}`); } catch (e) { showError(e); }
   refresh();
@@ -480,7 +544,9 @@ async function pollLog() {
   if (logBusy) return;
   logBusy = true;
   try {
-    const d = await api("GET", `log${logCursor ? `?cursor=${enc(logCursor)}` : ""}`);
+    const asked = kindView;
+    const d = await api("GET", `log?kind=${asked}${logCursor ? `&cursor=${enc(logCursor)}` : ""}`);
+    if (asked !== kindView) return;   // nel frattempo si è cambiato tipo: la risposta non vale più
     logCursor = d.cursor || logCursor;
     const fresh = d.lines.flatMap(l => l.split("\n")).filter(l => l.trim());
     if (fresh.length) {
@@ -848,9 +914,24 @@ function showTs(ts) {
     window.focus();
   }
 }
+function showSsh(s) {
+  if (!s) return;
+  $("sshEnabled").checked = !!s.enabled;
+  $("sshCmd").textContent = `ssh ${(s.user || "utente").split(":")[0]}@${s.host || "rig"}.local`;
+}
+async function sshToggle() {
+  const box = $("sshEnabled"), want = box.checked;
+  msg("setMsg", ""); box.disabled = true;
+  if (want && $("sshCmd")) msg("setMsg", "");
+  try { showSsh((await api("POST", "ssh", { enabled: want })));
+  } catch (e) { box.checked = !want; msg("setMsg", e.message); }
+  box.disabled = false;
+}
+$("sshEnabled").addEventListener("change", sshToggle);
 async function loadSettings() {
   const d = await api("GET", "settings");
   showTs(d.tailscale);
+  showSsh(d.ssh);
   if (typeof showLinkInfo === "function") showLinkInfo(d);
   return d;
 }
@@ -1121,7 +1202,9 @@ $("menuPanel").addEventListener("click", ev => { if (ev.target.closest("button")
 document.addEventListener("click", ev => { if (!ev.target.closest(".menu")) setMenu(false); });
 document.addEventListener("keydown", ev => { if (ev.key === "Escape") setMenu(false); });
 
-$("btnStop").addEventListener("click", stop);
+$("btnStop").addEventListener("click", () => stop("gpu"));
+$("btnCpuStop").addEventListener("click", () => stop("cpu"));
+$("launchKind").addEventListener("change", fillLaunchMiners);
 $("btnLogout").addEventListener("click", logout);
 $("btnNewMiner").addEventListener("click", () => openMinerForm());
 $("btnCheck").addEventListener("click", checkUpdates);

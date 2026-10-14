@@ -103,9 +103,13 @@
             <button id="btnNewMiner" class="primary hbtn" title="Aggiungi miner"><svg><use href="#i-plus"/></svg><span class="btxt">Aggiungi miner</span></button>
           </div>
         </div>
+        <div class="seg kindseg" role="group" aria-label="Tipo di mining"><button data-kind="gpu">GPU</button><button data-kind="cpu">CPU</button></div>
         <div id="minerForm" class="form card" hidden>
           <p class="muted small">I miner del catalogo vengono installati e aggiornati da soli su tutti i rig.</p>
-          <label>Nome <input id="minerName" placeholder="racer" spellcheck="false" autocapitalize="off"></label>
+          <div class="row">
+            <label>Nome <input id="minerName" placeholder="racer" spellcheck="false" autocapitalize="off"></label>
+            <label>Tipo <select id="minerKind"><option value="gpu">GPU</option><option value="cpu">CPU</option></select></label>
+          </div>
           <label>Link del pacchetto (.tar.gz, .zip o binario)
             <input id="minerUrl" placeholder="https://github.com/…/racer-0.9.5.tar.gz" spellcheck="false" autocapitalize="off">
           </label>
@@ -127,10 +131,12 @@
             <button id="btnNewLaunch" class="primary hbtn" title="Nuovo lancio"><svg><use href="#i-plus"/></svg><span class="btxt">Nuovo lancio</span></button>
           </div>
         </div>
+        <div class="seg kindseg" role="group" aria-label="Tipo di mining"><button data-kind="gpu">GPU</button><button data-kind="cpu">CPU</button></div>
         <div id="launchForm" class="form card" hidden>
           <h3 id="launchTitle"></h3>
           <div class="row">
             <label>Nome <input id="launchName" placeholder="coin-pool" spellcheck="false" autocapitalize="off"></label>
+            <label>Tipo <select id="launchKind"><option value="gpu">GPU</option><option value="cpu">CPU</option></select></label>
             <label>Miner <select id="launchMiner"></select></label>
           </div>
           <label>Comando

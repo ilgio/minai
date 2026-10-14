@@ -476,3 +476,17 @@ html { touch-action: pan-x pan-y; }
   body.tab-term.kb-open .termkeys { padding-bottom: .35rem; }
   body.tab-term.kb-open .tabs { display: none; }
 }
+
+/* GPU / CPU: selettore del tipo e riquadro della velocità CPU */
+.seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line); margin: .2rem 0 .7rem; }
+.seg button { border: 0; background: none; color: var(--muted); padding: .3rem .9rem; border-radius: 8px; font-weight: 600; font-size: 13px; }
+.seg button.on { background: var(--accent); color: #04121a; }
+.loghead .seg { margin: 0; }
+.cpubox { grid-column: 1 / -1; display: flex; align-items: center; gap: .55rem; margin-top: .8rem; padding: .55rem .75rem; border-radius: 12px;
+          background: rgba(255,255,255,.04); border: 1px solid var(--line); }
+.cpubox .cpulabel { font-weight: 700; font-size: 12px; letter-spacing: .06em; color: var(--muted); }
+.cpubox .cpuname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
+.cpubox .cpuspeed { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cpubox .cpuspeed small { margin-left: .25rem; font-weight: 500; color: var(--muted); }
+.cpubox button { padding: .3rem .7rem; font-size: 12px; }
+.badge.cpu { background: rgba(156, 240, 196, .15); color: #9cf0c4; }
